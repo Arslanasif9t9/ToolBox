@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Downloader - Arslan Toolbox{% endblock %}
+{% block content %}
+<h2>⬇️ Video / Audio Downloader</h2>
+<p class="muted">YouTube aur hazaron aur sites. Video aur audio alag hon to khud merge hote hain.</p>
+
+{% if not ffmpeg_ok %}
+<div class="card err">ffmpeg nahi mila. <code>pip install -r requirements.txt</code> dobara chalao (imageio-ffmpeg ffmpeg saath le aata hai).</div>
+{% endif %}
+
+<div class="card">
+  <input type="text" id="url" placeholder="Yahan video / audio ka URL paste karo" autofocus>
+  <div class="row">
+    <select id="mode" style="width:auto">
+      <option value="video">🎬 Video (MP4)</option>
+      <option value="audio">🎵 Sirf Audio (MP3)</option>
+    </select>
+    <select id="quality" style="width:auto">
+      <option value="best">Best quality</option>
+      <option value="1080">1080p tak</option>
+      <option value="720">720p tak</option>
+      <option value="480">480p tak</option>
+      <option value="360">360p tak</option>
+    </select>
+    <select id="cookies" style="width:auto" title="YouTube 'Sign in to confirm you're not a bot' error aaye tab use karo">
+      <option value="">Cookies: Koi nahi</option>
+      <option value="firefox">Cookies: Firefox</option>
+      <option value="chrome">Cookies: Chrome</option>
+      <option value="edge">Cookies: Edge</option>
+    </select>
+    <label class="muted"><input type="checkbox" id="playlist"> Poori playlist</label>
+  </div>
+  <div class="row">
+    <button id="go">Download</button>
+    <button class="ghost" id="folder">📂 Folder kholo</button>
+  </div>
+  <div class="bar"><div id="fill"></div></div>
+  <p id="msg" class="muted" style="margin-bottom:0"></p>
+</div>
+
+<p class="muted">Files yahan save hongi: <code>{{ folder }}</code></p>
+<button class="ghost" id="upd">yt-dlp update karo</button>
+<span class="muted" id="updmsg"></span>
+
+<script>
+const $ = id => document.getElementById(id);
+const post = (u, b) => fetch(u, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b||{})}).then(r => r.json());
+let timer;
+
+$('mode').onchange = () => $('quality').disabled = $('mode').value === 'audio';
+
+$('go').onclick = async () => {
+  clearInterval(timer);
+  $('fill').style.width = '0'; $('msg').className = 'muted'; $('msg').textContent = 'Shuru ho raha hai...';
+  const r = await post('/downloader/start', {url:$('url').value, mode:$('mode').value, quality:$('quality').value, playlist:$('playlist').checked, cookies:$('cookies').value});
+  if (r.error) { $('msg').className = 'err'; $('msg').textContent = r.error; return; }
+  $('go').disabled = true;
+  timer = setInterval(async () => {
+    const s = await (await fetch('/downloader/status/' + r.job_id)).json();
+    $('fill').style.width = (s.percent || 0) + '%';
+    let t = s.message || '';
+    if (s.status === 'running' && s.speed) t += `  ${Math.round(s.percent||0)}%  ${s.speed}  ETA ${s.eta}`;
+    $('msg').textContent = t;
+    if (s.status !== 'running') {
+      clearInterval(timer); $('go').disabled = false;
+      $('msg').className = s.status === 'done' ? 'ok' : 'err';
+      if (s.status === 'done' && s.title) $('msg').textContent = '✅ ' + s.title + ' - ' + s.message;
+    }
+  }, 700);
+};
+$('folder').onclick = () => post('/downloader/open-folder');
+$('upd').onclick = async () => { $('updmsg').textContent = ' update ho raha hai...'; const r = await post('/downloader/update-ytdlp'); $('updmsg').textContent = r.ok ? ' ✅ updated' : ' ❌ ' + r.output; };
+</script>
+{% endblock %}

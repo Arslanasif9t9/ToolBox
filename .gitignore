@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment (run.bat recreates it)
+.venv/
+venv/
+
+# Toolbox output: downloaded videos, PDFs, images etc. (personal and large)
+Output/
+
+# Secrets (future AI tools: Gemini/Groq keys etc.)
+.env
+.env.*
+*.key
+cookies.txt
+
+# Editors / IDE
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

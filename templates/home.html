@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Arslan Toolbox</h2>
+<p class="muted">Free, offline tools. Koi API key nahi, koi subscription nahi.</p>
+<div class="grid">
+  {% for t in tools %}
+  <a href="/{{ t.slug }}/"><div class="card"><div style="font-size:26px">{{ t.icon }}</div><b>{{ t.name }}</b><p class="muted">{{ t.desc }}</p></div></a>
+  {% endfor %}
+</div>
+{% endblock %}

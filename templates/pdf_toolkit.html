@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}PDF Toolkit - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .tabs button { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:8px 12px; font-size:14px; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .pane label { display:block; margin-top:12px; font-size:14px; }
+  .pane input[type=file], .pane input[type=password], .pane input[type=number], .pane textarea { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .pane input[type=text] { width:100%; padding:9px 10px; }
+  .pane textarea { min-height:200px; }
+  .pane form > button, .pane .btn { margin-top:14px; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  .olist { list-style:none; padding:0; margin:8px 0 0; }
+  .olist li { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:14px; }
+  .olist button { padding:3px 9px; font-size:13px; margin-left:4px; }
+  #result { margin-top:16px; }
+  #result .card a { color:var(--accent); }
+  #result pre { white-space:pre-wrap; max-height:260px; overflow:auto; background:var(--bg); padding:10px; border-radius:8px; font-size:13px; }
+  #stage { position:relative; display:inline-block; max-width:100%; border:1px solid var(--line); margin-top:12px; user-select:none; }
+  #stage img { display:block; max-width:100%; height:auto; }
+  #ov { position:absolute; inset:0; cursor:crosshair; overflow:hidden; }
+  #ov > * { position:absolute; pointer-events:none; }
+  .opitem { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px solid var(--line); }
+</style>
+
+<h2>📄 PDF Toolkit</h2>
+<p class="muted">Sab kuch tumhare laptop par, koi upload nahi. Output: <code>{{ folder }}</code></p>
+
+<div class="tabs" id="tabs">
+  <button class="on" data-tab="merge">Merge</button>
+  <button data-tab="split">Split</button>
+  <button data-tab="pages">Pages</button>
+  <button data-tab="rotate">Rotate</button>
+  <button data-tab="compress">Compress</button>
+  <button data-tab="img2pdf">Images → PDF</button>
+  <button data-tab="pdf2img">PDF → Images</button>
+  <button data-tab="password">Password</button>
+  <button data-tab="watermark">Watermark / Numbers</button>
+  <button data-tab="text">Text nikalo</button>
+  <button data-tab="create">New PDF</button>
+  <button data-tab="edit">✏️ Edit</button>
+</div>
+
+<div class="card">
+
+<div class="pane" id="merge">
+  <form data-api="/pdf/merge">
+    <b>Merge:</b> kai PDFs ko ek banao
+    <div class="ordered" data-name="files"><input type="file" accept=".pdf" multiple><ul class="olist"></ul></div>
+    <p class="muted" style="margin:6px 0 0">Order ↑ ↓ se badlo. Jo upar, wo pehle.</p>
+    <button type="submit">Merge karo</button>
+  </form>
+</div>
+
+<div class="pane" id="split" hidden>
+  <form data-api="/pdf/split">
+    <b>Split:</b> PDF ko tukdon mein todo
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="mode" value="ranges" checked> Ranges</label>
+      <label style="margin:0"><input type="radio" name="mode" value="each"> Har page alag</label>
+      <label style="margin:0"><input type="radio" name="mode" value="every"> Har N pages</label>
+    </div>
+    <label>Ranges (misal: 1-3,5,7-9) <input type="text" name="spec" placeholder="1-3,5,7-9"></label>
+    <label>Har kitne pages <input type="number" name="every" min="1" value="5"></label>
+    <button type="submit">Split karo</button>
+  </form>
+</div>
+
+<div class="pane" id="pages" hidden>
+  <form data-api="/pdf/pages">
+    <b>Pages:</b> chuni hui pages rakho ya hatao
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <label>Page numbers (misal: 2,4-6) <input type="text" name="spec" placeholder="2,4-6"></label>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="mode" value="keep" checked> Sirf ye pages rakho</label>
+      <label style="margin:0"><input type="radio" name="mode" value="delete"> Ye pages hata do</label>
+    </div>
+    <button type="submit">Chalao</button>
+  </form>
+</div>
+
+<div class="pane" id="rotate" hidden>
+  <form data-api="/pdf/rotate">
+    <b>Rotate:</b> pages ghumao
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <label>Pages (khali = sab) <input type="text" name="spec" placeholder="khali chhor do = sab pages"></label>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="angle" value="90" checked> 90° seedha</label>
+      <label style="margin:0"><input type="radio" name="angle" value="180"> 180°</label>
+      <label style="margin:0"><input type="radio" name="angle" value="270"> 90° ulta</label>
+    </div>
+    <button type="submit">Ghumao</button>
+  </form>
+</div>
+
+<div class="pane" id="compress" hidden>
+  <form data-api="/pdf/compress">
+    <b>Compress:</b> size chhota karo
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="level" value="low"> Halka (quality behtar)</label>
+      <label style="margin:0"><input type="radio" name="level" value="medium" checked> Medium</label>
+      <label style="margin:0"><input type="radio" name="level" value="high"> Zyada (size sabse chhota)</label>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Badi images wali PDF kaafi chhoti hoti hai. Sirf text wali PDF zyada nahi.</p>
+    <button type="submit">Compress karo</button>
+  </form>
+</div>
+
+<div class="pane" id="img2pdf" hidden>
+  <form data-api="/pdf/images-to-pdf">
+    <b>Images → PDF:</b> JPG/PNG se PDF
+    <div class="ordered" data-name="images"><input type="file" accept="image/*" multiple><ul class="olist"></ul></div>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="size" value="image" checked> Page = image jitna</label>
+      <label style="margin:0"><input type="radio" name="size" value="a4"> A4 page par fit</label>
+    </div>
+    <button type="submit">PDF banao</button>
+  </form>
+</div>
+
+<div class="pane" id="pdf2img" hidden>
+  <form data-api="/pdf/pdf-to-images">
+    <b>PDF → Images:</b> har page ki tasveer
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <label>Pages (khali = sab) <input type="text" name="spec" placeholder="khali = sab"></label>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="fmt" value="png" checked> PNG</label>
+      <label style="margin:0"><input type="radio" name="fmt" value="jpg"> JPG</label>
+      <label style="margin:0">Quality (DPI) <input type="number" name="dpi" value="150" min="50" max="400" style="width:90px"></label>
+    </div>
+    <button type="submit">Images banao</button>
+  </form>
+</div>
+
+<div class="pane" id="password" hidden>
+  <form data-api="/pdf/password">
+    <b>Password:</b> lagao ya hatao
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="action" value="lock" checked> Password lagao</label>
+      <label style="margin:0"><input type="radio" name="action" value="unlock"> Password hatao (pata hona chahiye)</label>
+    </div>
+    <label>Password <input type="password" name="pw"></label>
+    <button type="submit">Chalao</button>
+  </form>
+</div>
+
+<div class="pane" id="watermark" hidden>
+  <form data-api="/pdf/watermark">
+    <b>Watermark / Page numbers</b>
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <label>Watermark text (English) <input type="text" name="text" placeholder="CONFIDENTIAL (khali = koi watermark nahi)"></label>
+    <div class="inline">
+      <label style="margin:0">Dhundla pan
+        <select name="opacity" style="width:auto"><option value="0.12">Bahut halka</option><option value="0.2" selected>Halka</option><option value="0.4">Gehra</option></select>
+      </label>
+      <label style="margin:0"><input type="checkbox" name="numbers"> Page numbers lagao (niche beech mein)</label>
+    </div>
+    <button type="submit">Lagao</button>
+  </form>
+</div>
+
+<div class="pane" id="text" hidden>
+  <form data-api="/pdf/text">
+    <b>Text nikalo:</b> PDF se text (.txt)
+    <label>PDF <input type="file" name="file" accept=".pdf"></label>
+    <button type="submit">Text nikalo</button>
+  </form>
+</div>
+
+<div class="pane" id="create" hidden>
+  <form data-api="/pdf/create">
+    <b>New PDF:</b> text likho, PDF ban jayegi
+    <label>Title <input type="text" name="title" placeholder="Document ka title"></label>
+    <label>Text
+      <textarea name="body" placeholder="# Bara heading&#10;## Chhota heading&#10;Normal paragraph...&#10;- bullet point&#10;**mota text**"></textarea>
+    </label>
+    <p class="muted" style="margin:6px 0 0"><code># heading</code>, <code>## heading</code>, <code>- bullet</code>, <code>**mota**</code> chalte hain. Abhi sirf English likh sakte ho (Urdu baad mein).</p>
+    <div class="inline"><label style="margin:0">Font size <input type="number" name="size" value="11" min="8" max="24" style="width:80px"></label></div>
+    <button type="submit">PDF banao</button>
+  </form>
+</div>
+
+<div class="pane" id="edit" hidden>
+  <div id="edit-open">
+    <b>Edit:</b> PDF kholo, page par text / cover / image lagao
+    <form id="editOpenForm">
+      <label>PDF <input type="file" name="file" accept=".pdf"></label>
+      <label>Password (agar hai) <input type="password" name="password"></label>
+      <button type="submit">PDF kholo</button>
+    </form>
+  </div>
+  <div id="edit-work" hidden>
+    <div class="inline">
+      <label style="margin:0"><input type="radio" name="emode" value="text" checked> ✍️ Text likho</label>
+      <label style="margin:0"><input type="radio" name="emode" value="rect"> ⬜ Cover (patti)</label>
+      <label style="margin:0"><input type="radio" name="emode" value="image"> 🖼️ Image / signature</label>
+    </div>
+    <div class="inline" id="opt-text">
+      <input type="text" id="e-text" placeholder="Jo likhna hai" style="flex:1;min-width:200px">
+      Size <input type="number" id="e-size" value="14" min="6" max="96" style="width:70px">
+      Rang <input type="color" id="e-color" value="#000000">
+    </div>
+    <div class="inline" id="opt-rect" hidden>Patti ka rang <input type="color" id="e-fill" value="#ffffff"> <span class="muted">Page par drag karke dabba banao. Purana text badalna ho to pehle patti, phir uske upar text.</span></div>
+    <div class="inline" id="opt-image" hidden><input type="file" id="e-img" accept="image/*"> <span class="muted">Phir page par drag karke jagah chuno.</span></div>
+    <div class="inline">
+      <button class="ghost" id="pg-prev">◀</button>
+      <span id="pg-label">Page 1</span>
+      <button class="ghost" id="pg-next">▶</button>
+      <button class="ghost" id="undo">↩ Aakhri edit hatao</button>
+      <button id="apply">💾 Save karo</button>
+    </div>
+    <p class="muted" id="hint" style="margin:6px 0 0">Text mode: page par jahan likhna hai wahan click karo.</p>
+    <div id="stage"><img id="pv" alt="page"><div id="ov"></div></div>
+    <div id="oplist" style="margin-top:10px"></div>
+  </div>
+</div>
+
+</div>
+
+<div id="result"></div>
+<button class="ghost" id="openfolder" style="margin-top:10px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---- tabs
+$$('#tabs button').forEach(b => b.onclick = () => {
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.pane').forEach(p => p.hidden = p.id !== b.dataset.tab);
+  $('#result').innerHTML = '';
+});
+$('#openfolder').onclick = () => fetch('/pdf/open-folder', {method:'POST'});
+
+// ---- result display
+function show(html, cls) { $('#result').innerHTML = `<div class="card ${cls||''}">${html}</div>`; }
+function render(j, okStatus) {
+  if (!okStatus || j.error) return show('❌ ' + esc(j.error || 'Error'), 'err');
+  let h = '✅ ' + esc(j.note || 'Ho gaya.');
+  (j.files || []).forEach(f => {
+    h += `<div style="margin-top:8px">${f.is_dir ? '📁' : '📄'} <a href="/pdf/file/${encodeURI(f.name)}" target="_blank">${esc(f.name)}</a> <span class="muted">${esc(f.size)}</span></div>`;
+  });
+  if (j.files && j.files.some(f => f.is_dir)) h += '<div class="muted" style="margin-top:6px">Folder ke andar files hain, "Output folder kholo" se dekho.</div>';
+  if (j.preview) h += `<pre>${esc(j.preview)}</pre>`;
+  show(h);
+}
+async function send(url, fd, btn) {
+  if (btn) btn.disabled = true;
+  show('Ho raha hai...');
+  try {
+    const r = await fetch(url, {method:'POST', body: fd});
+    render(await r.json(), r.ok);
+  } catch (e) { show('❌ Server se rabta nahi hua: ' + esc(e), 'err'); }
+  if (btn) btn.disabled = false;
+}
+
+// ---- ordered multi-file lists (merge / images)
+$$('.ordered').forEach(box => {
+  const inp = box.querySelector('input'), ul = box.querySelector('ul');
+  box._files = [];
+  const draw = () => {
+    ul.innerHTML = '';
+    box._files.forEach((f, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${i + 1}. ${esc(f.name)}</span><span><button type="button" class="ghost">↑</button><button type="button" class="ghost">↓</button><button type="button" class="ghost">✕</button></span>`;
+      const [up, dn, rm] = li.querySelectorAll('button');
+      up.onclick = () => { if (i > 0) { [box._files[i-1], box._files[i]] = [box._files[i], box._files[i-1]]; draw(); } };
+      dn.onclick = () => { if (i < box._files.length - 1) { [box._files[i+1], box._files[i]] = [box._files[i], box._files[i+1]]; draw(); } };
+      rm.onclick = () => { box._files.splice(i, 1); draw(); };
+      ul.appendChild(li);
+    });
+  };
+  inp.onchange = () => { box._files.push(...inp.files); inp.value = ''; draw(); };
+});
+
+// ---- generic forms
+$$('form[data-api]').forEach(f => f.onsubmit = e => {
+  e.preventDefault();
+  const fd = new FormData(f);
+  const box = f.querySelector('.ordered');
+  if (box) box._files.forEach(x => fd.append(box.dataset.name, x));
+  send(f.dataset.api, fd, f.querySelector('button[type=submit]'));
+});
+
+// ---- visual editor
+const ED = {token:null, name:'', sizes:[], page:0, ops:[], dragStart:null};
+const pv = $('#pv'), ov = $('#ov');
+const mode = () => document.querySelector('input[name=emode]:checked').value;
+
+$$('input[name=emode]').forEach(r => r.onchange = () => {
+  $('#opt-text').hidden = mode() !== 'text';
+  $('#opt-rect').hidden = mode() !== 'rect';
+  $('#opt-image').hidden = mode() !== 'image';
+  $('#hint').textContent = {text:'Text mode: page par jahan likhna hai wahan click karo.',
+    rect:'Cover mode: page par drag karke dabba banao.', image:'Image mode: image chuno, phir page par drag karke jagah chuno.'}[mode()];
+});
+
+$('#editOpenForm').onsubmit = async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  show('Khul raha hai...');
+  const r = await fetch('/pdf/edit/open', {method:'POST', body: fd}); const j = await r.json();
+  if (!r.ok) return render(j, false);
+  Object.assign(ED, {token:j.token, name:j.name, sizes:j.sizes, page:0, ops:[]});
+  $('#edit-open').hidden = true; $('#edit-work').hidden = false; $('#result').innerHTML = '';
+  loadPage();
+};
+function loadPage() {
+  $('#pg-label').textContent = `Page ${ED.page + 1} / ${ED.sizes.length}`;
+  pv.onload = renderOv;
+  pv.src = `/pdf/edit/preview/${ED.token}/${ED.page}?t=${Date.now()}`;
+}
+$('#pg-prev').onclick = () => { if (ED.page > 0) { ED.page--; loadPage(); } };
+$('#pg-next').onclick = () => { if (ED.page < ED.sizes.length - 1) { ED.page++; loadPage(); } };
+$('#undo').onclick = () => { ED.ops.pop(); renderOv(); };
+
+const k = () => pv.clientWidth / ED.sizes[ED.page][0];   // px per pt
+function pt(e) { const r = ov.getBoundingClientRect(); return {x:(e.clientX - r.left) / k(), y:(e.clientY - r.top) / k()}; }
+
+function renderOv() {
+  ov.innerHTML = '';
+  const s = k();
+  ED.ops.forEach(op => {
+    if (op.page !== ED.page) return;
+    const d = document.createElement('div');
+    if (op.type === 'text') {
+      Object.assign(d.style, {left:op.x*s+'px', top:op.y*s+'px', fontSize:op.size*s+'px', color:op.color, lineHeight:1, whiteSpace:'pre', fontFamily:'Helvetica,Arial,sans-serif'});
+      d.textContent = op.text;
+    } else {
+      Object.assign(d.style, {left:op.x0*s+'px', top:op.y0*s+'px', width:(op.x1-op.x0)*s+'px', height:(op.y1-op.y0)*s+'px'});
+      if (op.type === 'rect') d.style.background = op.color;
+      else { d.style.backgroundImage = `url(${op.url})`; d.style.backgroundSize = 'contain'; d.style.backgroundRepeat = 'no-repeat'; d.style.backgroundPosition = 'center'; }
+    }
+    ov.appendChild(d);
+  });
+  $('#oplist').innerHTML = ED.ops.map((o, i) =>
+    `<div class="opitem"><span>Page ${o.page + 1}: ${o.type === 'text' ? '✍️ ' + esc(o.text) : o.type === 'rect' ? '⬜ cover' : '🖼️ image'}</span><a href="#" data-i="${i}">hatao</a></div>`).join('');
+  $$('#oplist a').forEach(a => a.onclick = ev => { ev.preventDefault(); ED.ops.splice(+a.dataset.i, 1); renderOv(); });
+}
+
+let dragEl = null;
+ov.onmousedown = e => {
+  e.preventDefault();
+  ED.dragStart = pt(e);
+  if (mode() !== 'text') {
+    dragEl = document.createElement('div');
+    Object.assign(dragEl.style, {border:'1px dashed #5b8cff', background:'rgba(91,140,255,.15)'});
+    ov.appendChild(dragEl);
+  }
+};
+ov.onmousemove = e => {
+  if (!ED.dragStart || !dragEl) return;
+  const p = pt(e), s = k(), a = ED.dragStart;
+  Object.assign(dragEl.style, {left:Math.min(a.x,p.x)*s+'px', top:Math.min(a.y,p.y)*s+'px', width:Math.abs(p.x-a.x)*s+'px', height:Math.abs(p.y-a.y)*s+'px'});
+};
+window.onmouseup = e => {
+  if (!ED.dragStart) return;
+  const a = ED.dragStart, p = pt(e); ED.dragStart = null; dragEl = null;
+  const m = mode();
+  if (m === 'text') {
+    const text = $('#e-text').value;
+    if (!text.trim()) { alert('Pehle upar box mein text likho.'); renderOv(); return; }
+    ED.ops.push({type:'text', page:ED.page, x:a.x, y:a.y, text, size:+$('#e-size').value || 14, color:$('#e-color').value});
+  } else {
+    const x0 = Math.min(a.x,p.x), x1 = Math.max(a.x,p.x), y0 = Math.min(a.y,p.y), y1 = Math.max(a.y,p.y);
+    if (x1 - x0 < 4 || y1 - y0 < 4) { renderOv(); return; }
+    if (m === 'rect') ED.ops.push({type:'rect', page:ED.page, x0, y0, x1, y1, color:$('#e-fill').value});
+    else {
+      const f = $('#e-img').files[0];
+      if (!f) { alert('Pehle image chuno.'); renderOv(); return; }
+      ED.ops.push({type:'image', page:ED.page, x0, y0, x1, y1, file:f, url:URL.createObjectURL(f)});
+    }
+  }
+  renderOv();
+};
+
+$('#apply').onclick = () => {
+  const fd = new FormData();
+  fd.append('token', ED.token); fd.append('name', ED.name);
+  const plain = ED.ops.map((o, i) => {
+    const c = {...o}; delete c.url;
+    if (o.type === 'image') { c.img = 'img_' + i; fd.append('img_' + i, o.file); delete c.file; }
+    return c;
+  });
+  fd.append('ops', JSON.stringify(plain));
+  send('/pdf/edit/apply', fd, $('#apply'));
+};
+</script>
+{% endblock %}
