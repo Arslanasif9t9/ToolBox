@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}OCR - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  [hidden] { display:none !important; }
+  .f input[type=file], .f select { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  .inline label { margin:0; }
+  .mrow { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin-top:8px; }
+  .mrow label { flex:1; cursor:pointer; margin:0; }
+  .mstat { min-width:170px; text-align:right; font-size:13px; }
+  .small { font-size:13px; }
+  .warn { color:#e0a030; font-size:14px; margin-top:8px; }
+  .res { margin-top:14px; }
+  .res textarea { width:100%; min-height:200px; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:15px; font-family:inherit; box-sizing:border-box; }
+  .res a { color:var(--accent); margin-right:12px; }
+  code.cmd { display:block; background:var(--bg); border:1px solid var(--line); padding:8px 10px; border-radius:8px; margin-top:6px; user-select:all; }
+</style>
+
+<h2>🔎 OCR - Text nikalo</h2>
+<p class="muted">Image ya scanned PDF se text nikalo. Urdu bhi. Offline, koi API key nahi. Output: <code>{{ folder }}</code></p>
+
+<div class="card" id="tessCard"><b>Tesseract</b> <span id="tessStat" class="muted">check ho raha hai...</span>
+  <div id="install" hidden>
+    <p class="small" style="margin:8px 0 0">Tesseract ek chhota free program hai jo ek baar install karna hota hai (Windows):</p>
+    <p class="small" style="margin:6px 0 0"><b>Aasan tareeqa</b> (CMD mein):</p>
+    <code class="cmd">winget install UB-Mannheim.TesseractOCR</code>
+    <p class="small" style="margin:8px 0 0"><b>Ya</b> <a href="https://github.com/UB-Mannheim/tesseract/wiki" target="_blank" style="color:var(--accent)">UB-Mannheim page</a> se <code>tesseract-ocr-w64-setup</code> download karke default folder mein install karo. Languages wahan select karne ki zaroorat nahi, wo neeche se download hongi.</p>
+    <p class="small" style="margin:8px 0 0">Install ke baad ye page refresh karo (app dobara chalane ki zaroorat nahi).</p>
+  </div>
+</div>
+
+<form class="f" id="form">
+  <div class="card">
+    <b>1. Language</b>
+    <p class="muted small" style="margin:4px 0 0">Jo language document mein ho wo tick karo (ek se zyada bhi). Pehli baar download karni hoti hai (<code>{{ tessdata }}</code>).</p>
+    <div id="langs"></div>
+  </div>
+
+  <div class="card">
+    <b>2. Files</b>
+    <label style="display:block;margin-top:8px;font-size:14px">Images ya PDF (ek ya kai)
+      <input type="file" name="files" id="files" accept=".jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,.pdf,image/*,application/pdf" multiple></label>
+
+    <div style="margin-top:14px"><b>3. Output</b></div>
+    <div class="inline">
+      <label><input type="checkbox" name="out" value="txt" checked> TXT</label>
+      <label><input type="checkbox" name="out" value="docx"> Word (.docx)</label>
+      <label><input type="checkbox" name="out" value="pdf"> Searchable PDF</label>
+    </div>
+    <div class="inline" id="docxOpts" hidden>
+      <label><input type="checkbox" name="join" checked> Word mein lines jod kar paragraph banao</label>
+      <label><input type="checkbox" name="rtl" id="rtl"> Right-to-left (Urdu/Arabic)</label>
+    </div>
+    <p class="muted small" style="margin:6px 0 0" id="pdfNote" hidden>Searchable PDF grayscale hoti hai (original rang nahi rehte).</p>
+
+    <details style="margin-top:12px"><summary class="muted small" style="cursor:pointer">Aur options</summary>
+      <div class="inline">
+        <label>Page type
+          <select name="psm" style="width:auto">{% for k, v in psms.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+        <label>PDF quality
+          <select name="dpi" style="width:auto"><option value="200">200 DPI (tez)</option><option value="300" selected>300 DPI (behtar)</option></select></label>
+        <label><input type="checkbox" name="clean"> Saaf karo (dhundli / andheri photo ke liye)</label>
+      </div>
+    </details>
+    <button type="submit" id="go" style="margin-top:14px">🔎 Text nikalo</button>
+  </div>
+</form>
+
+<div id="result"></div>
+<button class="ghost" id="openfolder" style="margin-top:10px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let LANGS = [], picked = null, busy = {};
+
+function drawLangs() {
+  if (picked === null) {
+    const r = LANGS.filter(l => l.ready).map(l => l.name);
+    picked = new Set(r.length ? r : ['eng']);
+  }
+  $('#langs').innerHTML = LANGS.map(l => {
+    const st = l.ready ? '<span class="ok">✅ Taiyar</span>'
+      : busy[l.name] ? '<span class="muted">⬇ Download ho raha hai...</span>'
+      : `<button type="button" data-dl="${l.name}">⬇ Download (${esc(l.human)})</button>`;
+    return `<div class="mrow"><label><input type="checkbox" name="lang" value="${l.name}" ${l.ready && picked.has(l.name) ? 'checked' : ''} ${l.ready ? '' : 'disabled'}> <b>${esc(l.label)}</b></label><div class="mstat">${st}</div></div>`;
+  }).join('');
+  $$('input[name=lang]').forEach(c => c.onchange = () => { c.checked ? picked.add(c.value) : picked.delete(c.value); syncRtl(); });
+  $$('[data-dl]').forEach(b => b.onclick = async () => {
+    busy[b.dataset.dl] = true; drawLangs();
+    try {
+      const r = await fetch('/ocr/lang/download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:b.dataset.dl})});
+      const j = await r.json();
+      if (!r.ok) alert(j.error || 'Error'); else { LANGS = j.langs; picked.add(b.dataset.dl); }
+    } catch (e) { alert('Server se rabta nahi hua: ' + e); }
+    busy[b.dataset.dl] = false; drawLangs(); syncRtl();
+  });
+}
+function syncRtl() { $('#rtl').checked = picked.has('urd') || picked.has('ara'); }
+function syncOut() {
+  const o = $$('input[name=out]:checked').map(c => c.value);
+  $('#docxOpts').hidden = !o.includes('docx'); $('#pdfNote').hidden = !o.includes('pdf');
+}
+$$('input[name=out]').forEach(c => c.onchange = syncOut);
+
+async function loadStatus() {
+  try {
+    const j = await (await fetch('/ocr/status')).json();
+    LANGS = j.langs;
+    $('#tessStat').innerHTML = j.found ? `<span class="ok">✅ Mila</span> <span class="muted small">${esc(j.version)} · ${esc(j.exe)}</span>` : '<span class="err">❌ Install nahi hai</span>';
+    $('#install').hidden = j.found;
+  } catch (e) { $('#tessStat').textContent = 'Server se rabta nahi hua'; }
+  drawLangs(); syncRtl();
+}
+
+$('#openfolder').onclick = () => fetch('/ocr/open-folder', {method:'POST'});
+function show(html, cls) { $('#result').innerHTML = `<div class="card ${cls||''}">${html}</div>`; }
+
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  if (!$('#files').files.length) return show('❌ Pehle image ya PDF chuno.', 'err');
+  const btn = $('#go'); btn.disabled = true;
+  show('Ho raha hai... (har page mein kuch second lagte hain, bade PDF mein der lag sakti hai)');
+  try {
+    const r = await fetch('/ocr/run', {method:'POST', body:new FormData($('#form'))});
+    const j = await r.json();
+    if (!r.ok) show('❌ ' + esc(j.error || 'Error'), 'err');
+    else {
+      let h = '✅ ' + esc(j.note);
+      j.results.forEach((x, i) => {
+        h += `<div class="res"><b>${esc(x.name)}</b> <span class="muted small">· ${x.pages} page · ${x.words} lafz${x.conf != null ? ' · accuracy ~' + x.conf + '%' : ''}</span>`;
+        h += `<textarea dir="auto" readonly id="t${i}">${esc(x.text)}</textarea>`;
+        if (x.truncated) h += '<div class="muted small">Preview chhota kiya gaya, poora text file mein hai.</div>';
+        h += `<div style="margin-top:6px"><button type="button" class="ghost" data-copy="t${i}">📋 Copy</button> `;
+        h += x.files.map(f => `<a href="/ocr/file/${encodeURI(f.name)}" target="_blank">${esc(f.name)}</a><span class="muted small">${esc(f.size)}</span>`).join(' ') + '</div></div>';
+      });
+      (j.warnings || []).forEach(w => h += `<div class="warn">⚠️ ${esc(w)}</div>`);
+      show(h);
+      $$('[data-copy]').forEach(b => b.onclick = async () => {
+        const t = document.getElementById(b.dataset.copy);
+        try { await navigator.clipboard.writeText(t.value); } catch (_) { t.select(); document.execCommand('copy'); }
+        b.textContent = '✅ Copy ho gaya';
+      });
+    }
+  } catch (err) { show('❌ Server se rabta nahi hua: ' + esc(err), 'err'); }
+  btn.disabled = false;
+};
+
+syncOut(); loadStatus();
+</script>
+{% endblock %}

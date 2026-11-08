@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Document Converter - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .tabs button { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:8px 12px; font-size:14px; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .pane label { display:block; margin-top:12px; font-size:14px; }
+  .pane input[type=file], .pane input[type=password], .pane input[type=number], .pane textarea { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .pane textarea { min-height:200px; }
+  .pane form > button { margin-top:14px; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  #result { margin-top:16px; }
+  #result .card a { color:var(--accent); }
+  .warn { color:#e0a030; font-size:14px; margin-top:8px; }
+</style>
+
+<h2>🔄 Document Converter</h2>
+<p class="muted">Sab kuch tumhare laptop par. Output: <code>{{ folder }}</code></p>
+{% if not is_win %}
+<div class="card err">Word/PowerPoint/Excel → PDF sirf Windows par chalta hai (MS Office chahiye). Baqi tabs chalenge.</div>
+{% endif %}
+
+<div class="tabs" id="tabs">
+  <button class="on" data-tab="p2w">PDF → Word</button>
+  <button data-tab="word">Word → PDF</button>
+  <button data-tab="ppt">PowerPoint → PDF</button>
+  <button data-tab="excel">Excel → PDF</button>
+  <button data-tab="t2w">Text / Markdown → Word</button>
+</div>
+
+<div class="card">
+
+<div class="pane" id="p2w">
+  <form data-api="/converter/pdf-to-word">
+    <b>PDF → Word (.docx)</b>
+    <label>PDF files (ek ya kai) <input type="file" name="files" accept=".pdf" multiple></label>
+    <label>Password (agar PDF mein hai) <input type="password" name="password"></label>
+    <p class="muted" style="margin:8px 0 0">Text wali PDF ke liye. Tables ya columns wali PDF kabhi kabhi thodi bigad sakti hai. Scanned (tasveer wali) PDF ke liye OCR chahiye (Tool 7). Bari PDF mein kuch minute lag sakte hain.</p>
+    <button type="submit">Word banao</button>
+  </form>
+</div>
+
+<div class="pane" id="word" hidden>
+  <form data-api="/converter/office/word">
+    <b>Word → PDF</b> (Microsoft Word se)
+    <label>Files (.doc .docx .rtf .odt .txt) <input type="file" name="files" accept=".doc,.docx,.docm,.rtf,.odt,.txt" multiple></label>
+    <p class="muted" style="margin:8px 0 0">Word background mein khulta hai aur khud band ho jata hai. Tumhari already khuli Word files ko kuch nahi hota.</p>
+    <button type="submit">PDF banao</button>
+  </form>
+</div>
+
+<div class="pane" id="ppt" hidden>
+  <form data-api="/converter/office/ppt">
+    <b>PowerPoint → PDF</b> (Microsoft PowerPoint se)
+    <label>Files (.ppt .pptx .pps .ppsx .odp) <input type="file" name="files" accept=".ppt,.pptx,.pptm,.pps,.ppsx,.odp" multiple></label>
+    <p class="muted" style="margin:8px 0 0">Har slide ek PDF page banta hai.</p>
+    <button type="submit">PDF banao</button>
+  </form>
+</div>
+
+<div class="pane" id="excel" hidden>
+  <form data-api="/converter/office/excel">
+    <b>Excel → PDF</b> (Microsoft Excel se)
+    <label>Files (.xls .xlsx .csv .ods) <input type="file" name="files" accept=".xls,.xlsx,.xlsm,.xlsb,.csv,.ods" multiple></label>
+    <p class="muted" style="margin:8px 0 0">Saari sheets PDF mein aati hain. Bohat chaudi sheet kai pages mein toot sakti hai.</p>
+    <button type="submit">PDF banao</button>
+  </form>
+</div>
+
+<div class="pane" id="t2w" hidden>
+  <form data-api="/converter/text-to-word">
+    <b>Text / Markdown → Word</b>
+    <label>Title (optional) <input type="text" name="title" style="width:100%;padding:9px 10px"></label>
+    <label>Text
+      <textarea name="body" placeholder="# Bara heading&#10;## Chhota heading&#10;Normal paragraph...&#10;- bullet&#10;1. numbered&#10;**mota** aur *tirchha* text"></textarea>
+    </label>
+    <label>Ya .txt / .md file <input type="file" name="file" accept=".txt,.md,.markdown"></label>
+    <div class="inline">
+      <label style="margin:0">Font size <input type="number" name="size" value="12" min="8" max="28" style="width:80px"></label>
+      <label style="margin:0"><input type="checkbox" name="rtl"> Urdu / right-to-left</label>
+    </div>
+    <p class="muted" style="margin:8px 0 0"><code>#</code> heading, <code>-</code> bullet, <code>1.</code> numbered, <code>**mota**</code>, <code>*tirchha*</code> chalte hain. Har line alag paragraph banti hai. Textarea khali ho to file use hogi.</p>
+    <button type="submit">Word banao</button>
+  </form>
+</div>
+
+</div>
+
+<div id="result"></div>
+<button class="ghost" id="openfolder" style="margin-top:10px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+$$('#tabs button').forEach(b => b.onclick = () => {
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.pane').forEach(p => p.hidden = p.id !== b.dataset.tab);
+  $('#result').innerHTML = '';
+});
+$('#openfolder').onclick = () => fetch('/converter/open-folder', {method:'POST'});
+
+function show(html, cls) { $('#result').innerHTML = `<div class="card ${cls||''}">${html}</div>`; }
+function render(j, okStatus) {
+  if (!okStatus || j.error) return show('❌ ' + esc(j.error || 'Error'), 'err');
+  let h = '✅ ' + esc(j.note || 'Ho gaya.');
+  (j.files || []).forEach(f => {
+    h += `<div style="margin-top:8px">📄 <a href="/converter/file/${encodeURI(f.name)}" target="_blank">${esc(f.name)}</a> <span class="muted">${esc(f.size)}</span></div>`;
+  });
+  (j.warnings || []).forEach(w => { h += `<div class="warn">⚠️ ${esc(w)}</div>`; });
+  show(h);
+}
+
+$$('form[data-api]').forEach(f => f.onsubmit = async e => {
+  e.preventDefault();
+  const btn = f.querySelector('button[type=submit]');
+  btn.disabled = true;
+  show('Ho raha hai... (bari files mein thora time lag sakta hai)');
+  try {
+    const r = await fetch(f.dataset.api, {method:'POST', body:new FormData(f)});
+    render(await r.json(), r.ok);
+  } catch (err) { show('❌ Server se rabta nahi hua: ' + esc(err), 'err'); }
+  btn.disabled = false;
+});
+</script>
+{% endblock %}

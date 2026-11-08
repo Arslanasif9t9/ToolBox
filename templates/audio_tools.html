@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Audio Tools - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  [hidden] { display:none !important; }
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .tabs button { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:8px 12px; font-size:14px; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .f label.l { display:block; margin-top:12px; font-size:14px; }
+  .f input[type=file], .f input[type=text], .f input[type=number], .f select { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; box-sizing:border-box; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  .inline label { margin:0; display:flex; gap:6px; align-items:center; }
+  .inline select { width:auto !important; }
+  .inline input[type=number], .inline input[type=text] { width:110px !important; }
+  .small { font-size:13px; }
+  .warn { color:#e0a030; font-size:14px; margin-top:8px; }
+  #result { margin-top:16px; }
+  #result a { color:var(--accent); }
+  .out { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:10px; }
+  .out audio { width:100%; margin-top:8px; }
+  video#cutPlayer { width:100%; max-height:260px; background:#000; border-radius:10px; margin-top:10px; }
+  ol#joinList { padding-left:22px; margin:10px 0 0; }
+  ol#joinList li { margin:6px 0; font-size:14px; }
+  ol#joinList button { padding:2px 8px; margin-left:4px; font-size:13px; }
+  .det { font-size:13px; color:var(--muted); margin-top:4px; }
+</style>
+
+<h2>🎧 Audio Tools</h2>
+<p class="muted">Video se audio nikalo, convert, cut, join. Sab tumhare laptop par (ffmpeg). Output: <code>{{ folder }}</code></p>
+{% if not ffmpeg_ok %}<div class="card err">❌ ffmpeg nahi mila. <code>.venv\Scripts\pip install -r requirements.txt</code> chalao, phir app dobara chalao.</div>{% endif %}
+
+<div class="tabs" id="tabs">
+  <button class="on" data-tab="convert">Nikalo / Convert</button>
+  <button data-tab="cut">Cut</button>
+  <button data-tab="join">Join</button>
+</div>
+
+<form class="f" id="form" onsubmit="return false">
+  <div class="card">
+    <div class="pane" id="p-convert">
+      <b>Video ya audio se audio nikalo / format badlo</b>
+      <label class="l">Files (ek ya kai: MP4, MKV, MP3, WAV, M4A, WhatsApp voice wagaira)
+        <input type="file" name="files" id="convFiles" accept="audio/*,video/*,.mkv,.m4a,.opus,.ogg,.flac,.wma,.aac,.amr,.3gp" multiple></label>
+      <p class="muted small" id="convInfo" style="margin:6px 0 0"></p>
+    </div>
+
+    <div class="pane" id="p-cut" hidden>
+      <b>Audio ka hissa kaato</b>
+      <label class="l">File <input type="file" name="file" id="cutFile" accept="audio/*,video/*,.mkv,.m4a,.opus,.ogg,.flac,.wma,.aac,.amr,.3gp"></label>
+      <video id="cutPlayer" controls hidden></video>
+      <p class="muted small" id="cutInfo" style="margin:6px 0 0"></p>
+      <div class="inline">
+        <label>Start <input type="text" name="start" id="cutStart" placeholder="0:00"></label>
+        <button type="button" class="ghost" id="setStart" hidden>⏱ Yahan se</button>
+        <label>End <input type="text" name="end" id="cutEnd" placeholder="khali = aakhir tak"></label>
+        <button type="button" class="ghost" id="setEnd" hidden>⏱ Yahan tak</button>
+      </div>
+      <div class="inline">
+        <label><input type="radio" name="mode" value="keep" checked> Ye hissa rakho (baaki hatao)</label>
+        <label><input type="radio" name="mode" value="remove"> Ye hissa hatao (baaki jodo)</label>
+      </div>
+      <p class="muted small" style="margin:6px 0 0">Time aise likho: <code>90</code> ya <code>1:30</code> ya <code>0:01:30.5</code>. Preview chal sakta ho to player mein ruk kar "Yahan se / Yahan tak" dabao.</p>
+    </div>
+
+    <div class="pane" id="p-join" hidden>
+      <b>Kai audio files ek mein jodo</b>
+      <label class="l">Files add karo (jitni baar chaho, order neeche badal sakte ho)
+        <input type="file" id="joinAdd" accept="audio/*,video/*,.mkv,.m4a,.opus,.ogg,.flac,.wma,.aac,.amr,.3gp" multiple></label>
+      <ol id="joinList"></ol>
+      <p class="muted small" id="joinNote" style="margin:6px 0 0">Kam az kam 2 files chahiye. Alag alag quality ki files bhi jud jati hain.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>Output</b>
+    <div class="inline">
+      <label>Format
+        <select name="fmt" id="fmt">
+          <option value="mp3">MP3</option><option value="m4a">M4A (AAC)</option><option value="ogg">OGG</option>
+          <option value="wav">WAV (bina compress)</option><option value="flac">FLAC (lossless)</option>
+        </select></label>
+      <label id="brWrap">Quality
+        <select name="bitrate"><option value="128">128 kbps</option><option value="192" selected>192 kbps</option><option value="256">256 kbps</option><option value="320">320 kbps (best)</option></select></label>
+      <label>Channels
+        <select name="channels"><option value="">Wahi jo asal mein</option><option value="1">Mono</option><option value="2">Stereo</option></select></label>
+      <label>Sample rate
+        <select name="rate"><option value="">Wahi jo asal mein</option><option value="22050">22050 Hz</option><option value="44100">44100 Hz</option><option value="48000">48000 Hz</option></select></label>
+    </div>
+
+    <details style="margin-top:12px"><summary class="muted small" style="cursor:pointer">Awaaz theek karo (optional)</summary>
+      <div class="inline">
+        <label>Speed <input type="number" name="speed" value="1" min="0.25" max="4" step="0.05"> x</label>
+        <label>Awaaz <input type="number" name="gain" value="0" min="-30" max="30" step="1"> dB</label>
+        <label><input type="checkbox" name="normalize"> Awaaz barabar karo (normalize)</label>
+      </div>
+      <div class="inline">
+        <label>Fade in <input type="number" name="fade_in" value="0" min="0" max="60" step="0.5"> sec</label>
+        <label>Fade out <input type="number" name="fade_out" value="0" min="0" max="60" step="0.5"> sec</label>
+        <label><input type="checkbox" name="silence"> Khamoshi hatao (shuru/aakhir aur lambi pause)</label>
+      </div>
+      <p class="muted small" style="margin:6px 0 0">Speed 1x se upar tez, neeche dheemi (awaaz ka pitch wahi rehta hai). Ye options is page ke teeno tabs par lagte hain.</p>
+    </details>
+    <button type="button" id="go" style="margin-top:14px">▶ Shuru karo</button>
+  </div>
+</form>
+
+<div id="result"></div>
+<button class="ghost" id="openfolder" style="margin-top:10px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+let tab = 'convert', joinFiles = [];
+
+$$('#tabs button').forEach(b => b.onclick = () => {
+  tab = b.dataset.tab;
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.pane').forEach(p => p.hidden = p.id !== 'p-' + tab);
+  $('#go').textContent = {convert:'▶ Convert karo', cut:'✂️ Kaato', join:'🔗 Jodo'}[tab];
+});
+$('#go').textContent = '▶ Convert karo';
+$('#fmt').onchange = () => { $('#brWrap').hidden = ['wav', 'flac'].includes($('#fmt').value); };
+$('#openfolder').onclick = () => fetch('/audio/open-folder', {method:'POST'});
+
+// convert tab info
+$('#convFiles').onchange = e => {
+  const f = [...e.target.files];
+  $('#convInfo').textContent = f.length ? f.length + ' file(en): ' + f.map(x => x.name + ' (' + mb(x.size) + ')').join(', ').slice(0, 300) : '';
+};
+
+// cut tab: preview + time buttons
+let cutURL = null;
+$('#cutFile').onchange = e => {
+  const f = e.target.files[0], v = $('#cutPlayer');
+  if (cutURL) URL.revokeObjectURL(cutURL);
+  $('#cutInfo').textContent = ''; $('#setStart').hidden = $('#setEnd').hidden = true; v.hidden = true;
+  if (!f) return;
+  cutURL = URL.createObjectURL(f); v.src = cutURL; v.hidden = false;
+  v.onloadedmetadata = () => {
+    $('#cutInfo').textContent = 'Length: ' + fmt(v.duration) + ' · ' + mb(f.size);
+    $('#setStart').hidden = $('#setEnd').hidden = false;
+  };
+  v.onerror = () => { v.hidden = true; $('#cutInfo').textContent = 'Browser is file ka preview nahi chala saka. Time haath se likh do, cut phir bhi chalega.'; };
+};
+const fmt = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const stamp = t => { const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = (t % 60).toFixed(1).replace(/\.0$/, ''); return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + (parseFloat(s) < 10 ? '0' : '') + s; };
+$('#setStart').onclick = () => { $('#cutStart').value = stamp($('#cutPlayer').currentTime); };
+$('#setEnd').onclick = () => { $('#cutEnd').value = stamp($('#cutPlayer').currentTime); };
+
+// join tab: ordered list
+function drawJoin() {
+  $('#joinList').innerHTML = joinFiles.map((f, i) => `<li>${esc(f.name)} <span class="muted small">(${mb(f.size)})</span>
+    <button type="button" class="ghost" data-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="ghost" data-dn="${i}" ${i === joinFiles.length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="ghost" data-rm="${i}">✕</button></li>`).join('');
+  $$('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [joinFiles[i - 1], joinFiles[i]] = [joinFiles[i], joinFiles[i - 1]]; drawJoin(); });
+  $$('[data-dn]').forEach(b => b.onclick = () => { const i = +b.dataset.dn; [joinFiles[i + 1], joinFiles[i]] = [joinFiles[i], joinFiles[i + 1]]; drawJoin(); });
+  $$('[data-rm]').forEach(b => b.onclick = () => { joinFiles.splice(+b.dataset.rm, 1); drawJoin(); });
+}
+$('#joinAdd').onchange = e => { joinFiles.push(...e.target.files); e.target.value = ''; drawJoin(); };
+
+// run
+function show(html, cls) { $('#result').innerHTML = `<div class="card ${cls || ''}">${html}</div>`; }
+$('#go').onclick = async () => {
+  const fd = new FormData($('#form'));
+  let url = '/audio/' + tab;
+  fd.delete('files'); fd.delete('file');
+  if (tab === 'convert') {
+    const f = $('#convFiles').files; if (!f.length) return show('❌ Pehle file(en) chuno.', 'err');
+    [...f].forEach(x => fd.append('files', x));
+  } else if (tab === 'cut') {
+    const f = $('#cutFile').files[0]; if (!f) return show('❌ Pehle file chuno.', 'err');
+    fd.append('file', f);
+  } else {
+    if (joinFiles.length < 2) return show('❌ Jodne ke liye kam az kam 2 files add karo.', 'err');
+    joinFiles.forEach(x => fd.append('files', x));
+  }
+  const btn = $('#go'); btn.disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => show(`Ho raha hai... ${Math.round((Date.now() - t0) / 1000)} second<br><span class="muted small">Badi file ya video mein kuch minute lag sakte hain, page band mat karna.</span>`), 500);
+  show('Upload ho raha hai...');
+  try {
+    const r = await fetch(url, {method:'POST', body:fd});
+    const j = await r.json();
+    clearInterval(tick);
+    if (!r.ok) show('❌ ' + esc(j.error || 'Error'), 'err');
+    else {
+      let h = '✅ ' + esc(j.note);
+      j.files.forEach(f => {
+        const u = '/audio/file/' + encodeURI(f.name);
+        h += `<div class="out"><a href="${u}" target="_blank"><b>${esc(f.name)}</b></a> <span class="muted small">${esc(f.size)} · ${esc(f.dur)}</span><audio controls preload="none" src="${u}"></audio></div>`;
+      });
+      (j.details || []).forEach(d => h += `<div class="det">${esc(d)}</div>`);
+      (j.warnings || []).forEach(w => h += `<div class="warn">⚠️ ${esc(w)}</div>`);
+      show(h);
+    }
+  } catch (err) { clearInterval(tick); show('❌ Server se rabta nahi hua: ' + esc(err), 'err'); }
+  btn.disabled = false;
+};
+</script>
+{% endblock %}

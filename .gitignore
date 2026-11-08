@@ -11,6 +11,9 @@ venv/
 # Toolbox output: downloaded videos, PDFs, images etc. (personal and large)
 Output/
 
+# Downloaded AI models for the Background Remover (170 MB+ each, re-downloadable)
+models/
+
 # Secrets (future AI tools: Gemini/Groq keys etc.)
 .env
 .env.*

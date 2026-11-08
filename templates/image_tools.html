@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Image Tools - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  [hidden] { display:none !important; }
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .tabs button { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:8px 12px; font-size:14px; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .pane label { display:block; margin-top:12px; font-size:14px; }
+  .pane input[type=file], .pane input[type=number], .pane select { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .pane form > button { margin-top:14px; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  .inline label { margin:0; }
+  .inline input[type=number] { width:100px; }
+  #result { margin-top:16px; }
+  #result a { color:var(--accent); }
+  .warn { color:#e0a030; font-size:14px; margin-top:8px; }
+  .thumbs { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .thumbs div { font-size:12px; max-width:150px; }
+  .thumbs img { max-height:90px; max-width:150px; border:1px solid var(--line); border-radius:6px; background:#fff; display:block; margin-bottom:3px; }
+  .det { font-size:13px; color:var(--muted); margin-top:4px; }
+  #stage { position:relative; display:inline-block; max-width:100%; overflow:hidden; margin-top:12px; user-select:none; touch-action:none; background:#222; }
+  #pimg { display:block; max-width:100%; max-height:520px; }
+  #cbox { position:absolute; border:2px solid #fff; box-shadow:0 0 0 9999px rgba(0,0,0,.5); cursor:move; touch-action:none; }
+  #cbox::after { content:""; position:absolute; inset:0; background:
+     linear-gradient(#fff6 1px,transparent 1px) 0 33.3%/100% 33.3% repeat-y, linear-gradient(90deg,#fff6 1px,transparent 1px) 33.3% 0/33.3% 100% repeat-x; pointer-events:none; }
+</style>
+
+<h2>🖼️ Image Tools</h2>
+<p class="muted">Sab kuch tumhare laptop par. Output: <code>{{ folder }}</code>. Metadata (location waghera) output mein nahi jata. Image se PDF banana <b>PDF Toolkit</b> mein hai.</p>
+
+<div class="tabs" id="tabs">
+  <button class="on" data-tab="compress">Compress</button>
+  <button data-tab="resize">Resize</button>
+  <button data-tab="convert">Format badlo</button>
+  <button data-tab="passport">Passport photo</button>
+</div>
+
+<div class="card">
+
+<div class="pane" id="compress">
+  <form data-api="/images/compress">
+    <b>Compress:</b> size chhota karo
+    <label>Images (ek ya kai) <input type="file" name="files" accept=".jpg,.jpeg,.png,.webp,.bmp,.gif,.tif,.tiff,image/*" multiple></label>
+    <div class="inline">
+      <label><input type="radio" name="level" value="low"> Halka (quality behtar)</label>
+      <label><input type="radio" name="level" value="medium" checked> Medium</label>
+      <label><input type="radio" name="level" value="high"> Zyada (sabse chhoti)</label>
+    </div>
+    <div class="inline">
+      <label>Ya target size (KB) <input type="number" name="target_kb" min="5" max="20000" placeholder="jaise 200"></label>
+      <label>Output
+        <select name="fmt" style="width:auto"><option value="same">Wahi format</option><option value="jpg">JPG</option><option value="webp">WebP</option></select></label>
+      <label>Badi image chhoti karo
+        <select name="max_px" style="width:auto"><option value="0">Nahi</option><option value="4000">4000 px tak</option><option value="2500">2500 px tak</option><option value="1600">1600 px tak</option><option value="1080">1080 px tak</option></select></label>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Target size likho to quality khud itni rakhi jati hai ke size us se kam rahe (form upload ke "200 KB se kam" ke liye). PNG ke liye target nahi lagta, JPG ya WebP chuno.</p>
+    <button type="submit">Compress karo</button>
+  </form>
+</div>
+
+<div class="pane" id="resize" hidden>
+  <form data-api="/images/resize">
+    <b>Resize:</b> size badlo
+    <label>Images (ek ya kai) <input type="file" name="files" accept=".jpg,.jpeg,.png,.webp,.bmp,.gif,.tif,.tiff,image/*" multiple></label>
+    <label>Tareeqa
+      <select name="mode" id="rmode">
+        <option value="percent">Percent (jaise 50%)</option>
+        <option value="width">Width fix, height khud</option>
+        <option value="height">Height fix, width khud</option>
+        <option value="fit">Dabbe mein fit (nisbat wahi)</option>
+        <option value="fill">Dabba bharo (kinare kat jate hain)</option>
+      </select></label>
+    <div class="inline">
+      <label id="r-pct">Percent <input type="number" name="percent" value="50" min="1" max="500"></label>
+      <label id="r-w" hidden>Width (px) <input type="number" name="width" min="1" max="20000"></label>
+      <label id="r-h" hidden>Height (px) <input type="number" name="height" min="1" max="20000"></label>
+    </div>
+    <button type="submit">Resize karo</button>
+  </form>
+</div>
+
+<div class="pane" id="convert" hidden>
+  <form data-api="/images/convert">
+    <b>Format badlo:</b> JPG, PNG, WebP, BMP, GIF, TIFF, ICO
+    <label>Images (ek ya kai) <input type="file" name="files" accept=".jpg,.jpeg,.png,.webp,.bmp,.gif,.tif,.tiff,image/*" multiple></label>
+    <div class="inline">
+      <label>Naya format
+        <select name="fmt" id="cfmt" style="width:auto">
+          <option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option>
+          <option value="bmp">BMP</option><option value="gif">GIF</option><option value="tiff">TIFF</option><option value="ico">ICO (icon)</option>
+        </select></label>
+      <label id="c-q">Quality (1-100) <input type="number" name="quality" value="90" min="1" max="100"></label>
+    </div>
+    <div class="inline" id="c-ico" hidden>ICO sizes:
+      <label><input type="checkbox" name="ico" value="16" checked> 16</label>
+      <label><input type="checkbox" name="ico" value="32" checked> 32</label>
+      <label><input type="checkbox" name="ico" value="48" checked> 48</label>
+      <label><input type="checkbox" name="ico" value="64"> 64</label>
+      <label><input type="checkbox" name="ico" value="128"> 128</label>
+      <label><input type="checkbox" name="ico" value="256" checked> 256</label>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Transparent (PNG) se JPG/BMP/GIF banao to peeche safed rang aata hai. GIF se sirf pehla frame liya jata hai.</p>
+    <button type="submit">Badlo</button>
+  </form>
+</div>
+
+<div class="pane" id="passport" hidden>
+  <form id="pform">
+    <b>Passport photo:</b> crop, sahi size, aur print sheet
+    <label>Photo <input type="file" id="pfile" accept="image/*"></label>
+    <div class="inline">
+      <label>Size
+        <select id="ppreset" style="width:auto">
+          <option value="35x45">35 × 45 mm (passport / zyada tar mulk)</option>
+          <option value="50.8x50.8">2 × 2 inch (US visa)</option>
+          <option value="25x35">25 × 35 mm (chhoti ID)</option>
+          <option value="custom">Apni marzi (mm)</option>
+        </select></label>
+      <label>Width mm <input type="number" id="pmw" value="35" min="10" max="100" step="0.1"></label>
+      <label>Height mm <input type="number" id="pmh" value="45" min="10" max="100" step="0.1"></label>
+      <label>DPI <input type="number" id="pdpi" value="300" min="150" max="600"></label>
+    </div>
+    <div id="pstagebox" hidden>
+      <p class="muted" style="margin:10px 0 0">Box ko drag karke chehre par rakho (sar se thori jagah upar chhor kar). Neeche slider se box chhota/bada karo.</p>
+      <div id="stage"><img id="pimg" alt="photo"><div id="cbox"></div></div>
+      <div class="inline"><label style="flex:1;min-width:200px">Zoom <input type="range" id="pzoom" min="20" max="100" value="100" style="width:100%"></label></div>
+    </div>
+    <div class="inline">
+      <label>Print sheet
+        <select id="psheet" style="width:auto">
+          <option value="none">Nahi, sirf ek photo</option>
+          <option value="4x6">4 × 6 inch (lab / photo shop)</option>
+          <option value="a4">A4 (ghar ka printer)</option>
+        </select></label>
+      <label>Sheet format
+        <select id="psfmt" style="width:auto"><option value="jpg">JPG</option><option value="pdf">PDF</option></select></label>
+      <label><input type="checkbox" id="pcut" checked> Kaatne ki lakeerein</label>
+    </div>
+    <button type="submit">Photo banao</button>
+  </form>
+</div>
+
+</div>
+
+<div id="result"></div>
+<button class="ghost" id="openfolder" style="margin-top:10px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+$$('#tabs button').forEach(b => b.onclick = () => {
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.pane').forEach(p => p.hidden = p.id !== b.dataset.tab);
+  $('#result').innerHTML = '';
+});
+$('#openfolder').onclick = () => fetch('/images/open-folder', {method:'POST'});
+
+function show(html, cls) { $('#result').innerHTML = `<div class="card ${cls||''}">${html}</div>`; }
+function render(j, okStatus) {
+  if (!okStatus || j.error) return show('❌ ' + esc(j.error || 'Error'), 'err');
+  let h = '✅ ' + esc(j.note || 'Ho gaya.');
+  (j.details || []).forEach(d => { h += `<div class="det">${esc(d)}</div>`; });
+  h += '<div class="thumbs">' + (j.files || []).map(f => {
+    const url = '/images/file/' + encodeURI(f.name), pdf = /\.pdf$/i.test(f.name);
+    return `<div>${pdf ? '📄' : `<img src="${url}" loading="lazy" alt="">`}<a href="${url}" target="_blank">${esc(f.name)}</a><br><span class="muted">${esc(f.size)}</span></div>`;
+  }).join('') + '</div>';
+  (j.warnings || []).forEach(w => { h += `<div class="warn">⚠️ ${esc(w)}</div>`; });
+  show(h);
+}
+async function send(url, fd, btn) {
+  btn.disabled = true; show('Ho raha hai...');
+  try { const r = await fetch(url, {method:'POST', body:fd}); render(await r.json(), r.ok); }
+  catch (e) { show('❌ Server se rabta nahi hua: ' + esc(e), 'err'); }
+  btn.disabled = false;
+}
+$$('form[data-api]').forEach(f => f.onsubmit = e => { e.preventDefault(); send(f.dataset.api, new FormData(f), f.querySelector('button[type=submit]')); });
+
+// resize fields
+$('#rmode').onchange = () => {
+  const m = $('#rmode').value;
+  $('#r-pct').hidden = m !== 'percent';
+  $('#r-w').hidden = !['width', 'fit', 'fill'].includes(m);
+  $('#r-h').hidden = !['height', 'fit', 'fill'].includes(m);
+};
+// convert fields
+$('#cfmt').onchange = () => {
+  const f = $('#cfmt').value;
+  $('#c-q').hidden = !['jpg', 'webp'].includes(f);
+  $('#c-ico').hidden = f !== 'ico';
+};
+
+// ---- passport crop box
+const pimg = $('#pimg'), cbox = $('#cbox'), stageBox = $('#pstagebox');
+let bx = 0, by = 0, zoom = 1;
+const ratio = () => (parseFloat($('#pmw').value) || 35) / (parseFloat($('#pmh').value) || 45);
+function boxSize() {
+  const W = pimg.clientWidth, H = pimg.clientHeight, r = ratio();
+  let w = W, h = W / r; if (h > H) { h = H; w = H * r; }
+  return [w * zoom, h * zoom, W, H];
+}
+function layout(keepCenter) {
+  const [bw, bh, W, H] = boxSize();
+  if (keepCenter) { bx = keepCenter.x - bw / 2; by = keepCenter.y - bh / 2; }
+  bx = Math.min(Math.max(0, bx), W - bw); by = Math.min(Math.max(0, by), H - bh);
+  Object.assign(cbox.style, {left:bx+'px', top:by+'px', width:bw+'px', height:bh+'px'});
+}
+function center() { const [bw, bh] = boxSize(); return {x: bx + bw / 2, y: by + bh / 2}; }
+$('#pfile').onchange = e => {
+  const f = e.target.files[0]; if (!f) { stageBox.hidden = true; return; }
+  pimg.onload = () => { stageBox.hidden = false; zoom = 1; $('#pzoom').value = 100; const [bw, bh, W, H] = boxSize(); bx = (W - bw) / 2; by = Math.max(0, (H - bh) / 4); layout(); };
+  pimg.src = URL.createObjectURL(f);
+};
+$('#pzoom').oninput = () => { const c = center(); zoom = $('#pzoom').value / 100; layout(c); };
+['pmw', 'pmh'].forEach(id => $('#' + id).oninput = () => { $('#ppreset').value = 'custom'; if (!stageBox.hidden) layout(center()); });
+$('#ppreset').onchange = () => {
+  const v = $('#ppreset').value; if (v === 'custom') return;
+  const [w, h] = v.split('x'); $('#pmw').value = w; $('#pmh').value = h;
+  if (!stageBox.hidden) layout(center());
+};
+let drag = null;
+cbox.onpointerdown = e => { e.preventDefault(); cbox.setPointerCapture(e.pointerId); drag = {x:e.clientX - bx, y:e.clientY - by}; };
+cbox.onpointermove = e => { if (!drag) return; bx = e.clientX - drag.x; by = e.clientY - drag.y; layout(); };
+cbox.onpointerup = cbox.onpointercancel = () => { drag = null; };
+
+$('#pform').onsubmit = e => {
+  e.preventDefault();
+  const f = $('#pfile').files[0];
+  if (!f) return show('❌ Pehle photo chuno.', 'err');
+  const [bw, bh, W, H] = boxSize();
+  const fd = new FormData();
+  fd.append('file', f); fd.append('mm_w', $('#pmw').value); fd.append('mm_h', $('#pmh').value); fd.append('dpi', $('#pdpi').value);
+  fd.append('crop', JSON.stringify({x:bx / W, y:by / H, w:bw / W, h:bh / H}));
+  fd.append('sheet', $('#psheet').value); fd.append('sheet_fmt', $('#psfmt').value);
+  if ($('#pcut').checked) fd.append('cut', 'on');
+  send('/images/passport', fd, e.target.querySelector('button[type=submit]'));
+};
+</script>
+{% endblock %}

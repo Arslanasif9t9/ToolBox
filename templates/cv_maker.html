@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}CV Maker - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  main { max-width:1500px !important; }
+  .wrap { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; align-items:start; }
+  @media (max-width:1100px) { .wrap { grid-template-columns:1fr; } #pvbox { position:static !important; } }
+  .f input[type=text], .f input[type=email], .f input[type=file], .f input[type=number], .f select, .f textarea { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .f textarea { min-height:70px; resize:vertical; }
+  .f label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .item { border:1px solid var(--line); border-radius:10px; padding:4px 12px 12px; margin-top:10px; position:relative; }
+  .item .rm { position:absolute; top:6px; right:8px; padding:2px 9px; font-size:13px; }
+  .f h3 { margin:0 0 4px; font-size:16px; }
+  .small { font-size:13px; }
+  #pvbox { position:sticky; top:16px; }
+  #pages img { width:100%; border:1px solid var(--line); border-radius:6px; margin-bottom:10px; background:#fff; }
+  .bar2 { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  #msg a { color:var(--accent); }
+</style>
+
+<h2>📝 CV / Resume Maker</h2>
+<p class="muted">Form bharo, preview dekho, PDF ya Word banao. Output: <code>{{ folder }}</code></p>
+
+<div class="wrap">
+<div class="f">
+
+  <div class="card">
+    <div class="bar2">
+      <select id="saved" style="flex:1;min-width:160px"><option value="">Pehle se saved CV...</option></select>
+      <button class="ghost" id="loadBtn" type="button">Load</button>
+      <button class="ghost" id="sampleBtn" type="button">Misaal bharo</button>
+      <button class="ghost" id="clearBtn" type="button">Khali karo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Template</h3>
+    <div class="grid2">
+      <div><label>Style</label>
+        <select id="template">
+          <option value="classic">Classic (seedha)</option>
+          <option value="modern">Modern (rangeen header)</option>
+          <option value="compact">Compact (kam jagah)</option>
+        </select></div>
+      <div class="grid2">
+        <div><label>Rang</label><input type="color" id="accent" value="#1f2937" style="width:100%;height:36px;padding:2px"></div>
+        <div><label>Font size</label><input type="number" id="font_size" value="10" min="8" max="13" step="0.5"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Zaati maloomat</h3>
+    <div class="grid2">
+      <div><label>Poora naam *</label><input type="text" id="name"></div>
+      <div><label>Job title / headline</label><input type="text" id="title" placeholder="Full-Stack Developer"></div>
+      <div><label>Email</label><input type="email" id="email"></div>
+      <div><label>Phone</label><input type="text" id="phone"></div>
+    </div>
+    <label>Shehar / mulk</label><input type="text" id="location">
+    <label>Photo (optional, JPG/PNG)</label><input type="file" id="photo" accept="image/*">
+    <div class="small muted" id="photoInfo"></div>
+    <label class="small" style="display:inline-flex;gap:6px;align-items:center;color:var(--text)"><input type="checkbox" id="remove_photo"> Photo hata do</label>
+    <div id="sec-links"></div>
+    <button class="ghost" type="button" data-add="links" style="margin-top:8px">+ Link (LinkedIn, GitHub, website)</button>
+  </div>
+
+  <div class="card">
+    <h3>Summary</h3>
+    <textarea id="summary" placeholder="2-3 line ka khulasa: tum kaun ho aur kya acha karte ho"></textarea>
+  </div>
+
+  <div class="card"><h3>Experience</h3><div id="sec-experience"></div>
+    <button class="ghost" type="button" data-add="experience" style="margin-top:8px">+ Experience</button></div>
+  <div class="card"><h3>Education</h3><div id="sec-education"></div>
+    <button class="ghost" type="button" data-add="education" style="margin-top:8px">+ Education</button></div>
+  <div class="card"><h3>Skills</h3><div id="sec-skills"></div>
+    <button class="ghost" type="button" data-add="skills" style="margin-top:8px">+ Skills ka group</button></div>
+  <div class="card"><h3>Projects</h3><div id="sec-projects"></div>
+    <button class="ghost" type="button" data-add="projects" style="margin-top:8px">+ Project</button></div>
+  <div class="card"><h3>Certifications</h3><div id="sec-certs"></div>
+    <button class="ghost" type="button" data-add="certs" style="margin-top:8px">+ Certification</button></div>
+
+  <div class="card">
+    <h3>Languages aur Achievements</h3>
+    <label>Languages</label><input type="text" id="languages" placeholder="English (fluent), Urdu (native)">
+    <label>Achievements (har line = ek bullet)</label><textarea id="achievements"></textarea>
+  </div>
+</div>
+
+<div id="pvbox">
+  <div class="card">
+    <div class="bar2">
+      <button type="button" id="pvBtn">👁️ Preview</button>
+      <button type="button" id="pdfBtn">📄 PDF banao</button>
+      <button type="button" id="docxBtn">📘 Word banao</button>
+      <button class="ghost" type="button" id="folderBtn">📂 Folder</button>
+    </div>
+    <p class="small muted" style="margin:8px 0 0">Word CV hamesha seedhi, ATS-friendly layout mein banti hai (template ka rang istemal hota hai). Photo ke liye English letters behtar chalte hain.</p>
+    <p id="msg" style="margin:8px 0 0"></p>
+  </div>
+  <div id="pages"></div>
+</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const SECTIONS = {
+  links: [['label','Label (GitHub)'],['url','Link']],
+  experience: [['role','Job title'],['company','Company'],['location','Shehar'],['start','Shuru (Jan 2022)'],['end','Khatam (khali = Present)'],['bullets','Kaam / achievements (har line = ek bullet)','area']],
+  education: [['degree','Degree'],['school','University / School'],['start','Shuru (2019)'],['end','Khatam (2023)'],['grade','CGPA / Grade'],['details','Extra (optional)']],
+  skills: [['group','Group (Languages)'],['items','Skills (comma se alag)']],
+  projects: [['name','Project ka naam'],['link','Link'],['desc','Kya kiya (har line = ek bullet)','area']],
+  certs: [['name','Certification'],['issuer','Kis ne di'],['year','Saal']],
+};
+const MINROWS = {links:0, experience:1, education:1, skills:1, projects:0, certs:0};
+
+function addRow(key, vals = {}) {
+  const box = $('#sec-' + key), d = document.createElement('div');
+  d.className = 'item';
+  const fields = SECTIONS[key];
+  d.innerHTML = '<button class="ghost rm" type="button">✕</button><div class="grid2">' + fields.map(([k, lab, t]) =>
+    t === 'area'
+      ? `<div style="grid-column:1/-1"><label>${lab}</label><textarea data-k="${k}">${esc(vals[k] || '')}</textarea></div>`
+      : `<div><label>${lab}</label><input type="text" data-k="${k}" value="${esc(vals[k] || '')}"></div>`).join('') + '</div>';
+  d.querySelector('.rm').onclick = () => d.remove();
+  box.appendChild(d);
+}
+$$('[data-add]').forEach(b => b.onclick = () => addRow(b.dataset.add));
+
+function rowsOf(key) {
+  return $$('#sec-' + key + ' .item').map(it => {
+    const o = {}; it.querySelectorAll('[data-k]').forEach(e => o[e.dataset.k] = e.value); return o;
+  });
+}
+const SIMPLE = ['name','title','email','phone','location','summary','languages','achievements'];
+let photoFile = '';
+
+function collect() {
+  const d = {template:$('#template').value, accent:$('#accent').value, font_size:$('#font_size').value, photo_file:photoFile};
+  SIMPLE.forEach(k => d[k] = $('#' + k).value);
+  Object.keys(SECTIONS).forEach(k => d[k] = rowsOf(k));
+  return d;
+}
+function fill(d) {
+  $('#template').value = d.template || 'classic';
+  $('#accent').value = d.accent || DEFAULT[$('#template').value];
+  $('#font_size').value = d.font_size || 10;
+  SIMPLE.forEach(k => $('#' + k).value = Array.isArray(d[k]) ? d[k].join('\n') : (d[k] || ''));
+  Object.keys(SECTIONS).forEach(k => {
+    $('#sec-' + k).innerHTML = '';
+    (d[k] || []).forEach(r => addRow(k, r));
+    while ($$('#sec-' + k + ' .item').length < MINROWS[k]) addRow(k);
+  });
+  photoFile = d.photo_file || '';
+  $('#photo').value = ''; $('#remove_photo').checked = false;
+  $('#photoInfo').textContent = photoFile ? 'Saved photo istemal hogi: ' + photoFile : '';
+}
+const DEFAULT = {classic:'#1f2937', modern:'#2563eb', compact:'#0f766e'};
+$('#template').onchange = () => { $('#accent').value = DEFAULT[$('#template').value]; };
+
+function formData(extra = {}) {
+  const fd = new FormData();
+  fd.append('data', JSON.stringify(collect()));
+  const f = $('#photo').files[0]; if (f) fd.append('photo', f);
+  if ($('#remove_photo').checked) fd.append('remove_photo', 'on');
+  Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+  return fd;
+}
+function say(html, cls) { $('#msg').className = cls || ''; $('#msg').innerHTML = html; }
+async function call(url, fd, btn) {
+  btn.disabled = true; say('Ho raha hai...', 'muted');
+  try {
+    const r = await fetch(url, {method:'POST', body:fd}); const j = await r.json();
+    if (!r.ok) { say('❌ ' + esc(j.error || 'Error'), 'err'); return null; }
+    return j;
+  } catch (e) { say('❌ Server se rabta nahi hua: ' + esc(e), 'err'); return null; }
+  finally { btn.disabled = false; }
+}
+
+$('#pvBtn').onclick = async () => {
+  const j = await call('/cv/preview', formData(), $('#pvBtn')); if (!j) return;
+  $('#pages').innerHTML = j.pages.map(p => `<img src="${p}" alt="page">`).join('');
+  say(j.n === 1 ? '✅ 1 page' : `✅ ${j.n} pages. 1 page chahiye to Compact template ya chhota font size try karo.`, j.n === 1 ? 'ok' : '');
+};
+async function make(fmt, btn) {
+  const j = await call('/cv/generate', formData({fmt}), btn); if (!j) return;
+  const f = j.files[0];
+  say(`✅ ${esc(j.note)} <a href="/cv/file/${encodeURI(f.name)}" target="_blank">${esc(f.name)}</a> <span class="muted">${esc(f.size)}</span>`, 'ok');
+  loadSavedList();
+}
+$('#pdfBtn').onclick = () => make('pdf', $('#pdfBtn'));
+$('#docxBtn').onclick = () => make('docx', $('#docxBtn'));
+$('#folderBtn').onclick = () => fetch('/cv/open-folder', {method:'POST'});
+
+async function loadSavedList() {
+  const j = await (await fetch('/cv/saved')).json();
+  $('#saved').innerHTML = '<option value="">Pehle se saved CV...</option>' + j.items.map(n => `<option>${esc(n)}</option>`).join('');
+}
+$('#loadBtn').onclick = async () => {
+  const n = $('#saved').value; if (!n) return say('Pehle list se CV chuno.', 'muted');
+  const r = await fetch('/cv/load/' + encodeURIComponent(n)); const j = await r.json();
+  if (!r.ok) return say('❌ ' + esc(j.error), 'err');
+  fill(j.data); say('✅ Load ho gayi. Edit karke dobara PDF/Word banao.', 'ok');
+};
+$('#clearBtn').onclick = () => { if (confirm('Poora form khali kar dun?')) { fill({}); $('#pages').innerHTML = ''; say(''); } };
+$('#sampleBtn').onclick = () => fill({
+  template:'modern', name:'Ali Raza', title:'Full-Stack Developer', email:'ali.raza@example.com', phone:'+92 300 1234567', location:'Lahore, Pakistan',
+  summary:'Backend-focused developer with 3 years of experience building web platforms with React, Node and PostgreSQL.',
+  links:[{label:'GitHub', url:'github.com/aliraza'}],
+  experience:[{role:'Software Engineer', company:'Acme Solutions', location:'Lahore', start:'Jan 2023', end:'', bullets:'Built REST APIs serving 50k daily users\nCut report time by 70% with query tuning'}],
+  education:[{degree:'BS Information Technology', school:'University of Punjab', start:'2019', end:'2023', grade:'CGPA 3.6/4.0', details:''}],
+  skills:[{group:'Languages', items:'Python, JavaScript, SQL'},{group:'Tools', items:'React, Flask, Git, Docker'}],
+  projects:[{name:'Smart Inventory', link:'', desc:'Inventory tracker for small shops\nBarcode scanning and low-stock alerts'}],
+  certs:[], languages:'English (fluent), Urdu (native)', achievements:'Won university hackathon 2022'
+});
+
+fill({}); loadSavedList();
+</script>
+{% endblock %}

@@ -3,3 +3,11 @@ yt-dlp
 imageio-ffmpeg
 pymupdf
 pillow
+pdf2docx
+python-docx
+opencv-python-headless
+numpy
+pywin32; sys_platform == "win32"
+qrcode
+python-barcode
+zxing-cpp

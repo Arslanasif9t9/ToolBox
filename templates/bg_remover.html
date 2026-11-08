@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Background Remover - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  [hidden] { display:none !important; }
+  .f label.l { display:block; margin-top:12px; font-size:14px; }
+  .f input[type=file], .f select { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  .inline label { margin:0; }
+  .mrow { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin-top:8px; }
+  .mrow label { flex:1; cursor:pointer; margin:0; }
+  .mstat { min-width:190px; text-align:right; font-size:13px; }
+  .small { font-size:13px; }
+  .pbar { height:8px; background:var(--bg); border-radius:99px; overflow:hidden; margin-top:6px; }
+  .pbar div { height:100%; background:var(--accent); width:0; transition:width .3s; }
+  .sw { width:26px; height:26px; border-radius:6px; border:2px solid var(--line); padding:0; cursor:pointer; }
+  #result { margin-top:16px; }
+  #result a { color:var(--accent); }
+  .warn { color:#e0a030; font-size:14px; margin-top:8px; }
+  .det { font-size:13px; color:var(--muted); margin-top:4px; }
+  .pairs { display:flex; flex-wrap:wrap; gap:16px; margin-top:12px; }
+  .pair { font-size:12px; max-width:340px; }
+  .pair .imgs { display:flex; gap:8px; }
+  .pair img { max-height:170px; max-width:160px; border:1px solid var(--line); border-radius:6px; display:block; background:#fff; }
+  .pair img.after { background:conic-gradient(#d9d9d9 25%, #fff 0 50%, #d9d9d9 0 75%, #fff 0) 0 0/16px 16px; }
+</style>
+
+<h2>✂️ Background Remover</h2>
+<p class="muted">Photo ka background hatao. Model sirf ek baar download hota hai (<code>{{ models_dir }}</code>), uske baad sab offline. Output: <code>{{ folder }}</code></p>
+
+<form class="f" id="form">
+  <div class="card">
+    <b>1. Model chuno</b>
+    <p class="muted small" style="margin:4px 0 0">Pehli baar try karne ke liye sabse chhota (4.6 MB) download karo. Behtar quality ke liye bade wale.</p>
+    <div id="models"></div>
+  </div>
+
+  <div class="card">
+    <b>2. Photos</b>
+    <label class="l">Images (ek ya kai) <input type="file" name="files" id="files" accept=".jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,image/*" multiple></label>
+
+    <div style="margin-top:14px"><b>3. Peeche kya ho?</b></div>
+    <div class="inline">
+      <label><input type="radio" name="bg" value="transparent" checked> Transparent</label>
+      <label><input type="radio" name="bg" value="color"> Rang</label>
+      <label><input type="radio" name="bg" value="image"> Doosri photo</label>
+    </div>
+    <div class="inline" id="colorRow" hidden>
+      <input type="color" id="colorPick" name="color" value="#ffffff" style="width:44px;height:34px;padding:2px">
+      <button type="button" class="sw" data-c="#ffffff" style="background:#ffffff" title="Safed"></button>
+      <button type="button" class="sw" data-c="#3b78c4" style="background:#3b78c4" title="Neela"></button>
+      <button type="button" class="sw" data-c="#c0392b" style="background:#c0392b" title="Surkh"></button>
+      <button type="button" class="sw" data-c="#2e8b57" style="background:#2e8b57" title="Hara"></button>
+      <button type="button" class="sw" data-c="#000000" style="background:#000000" title="Kala"></button>
+    </div>
+    <div id="imgRow" hidden><label class="l">Peeche lagane wali photo <input type="file" name="bg_file" accept="image/*"></label></div>
+
+    <div class="inline">
+      <label>Kinare
+        <select name="edge" style="width:auto">
+          <option value="natural">Natural</option>
+          <option value="hard">Saaf / sakht (jootay, products)</option>
+          <option value="soft">Narm (baal, fur)</option>
+        </select></label>
+      <label>Format
+        <select name="fmt" style="width:auto">
+          <option value="png">PNG</option><option value="jpg">JPG (rang/photo ke saath)</option><option value="webp">WebP</option>
+        </select></label>
+      <label><input type="checkbox" name="crop"> Subject ke hisaab se crop</label>
+    </div>
+    <p class="muted small" style="margin:8px 0 0">Transparent chuno to output hamesha PNG (ya WebP) hota hai, JPG transparent nahi hoti.</p>
+    <button type="submit" id="go" style="margin-top:14px">✂️ Background hatao</button>
+  </div>
+</form>
+
+<div id="result"></div>
+<button class="ghost" id="openfolder" style="margin-top:10px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let MODELS = [], chosen = '', timer = null;
+
+function drawModels() {
+  if (!chosen) {
+    const ready = ['isnet-general-use', 'u2net', 'u2net_human_seg', 'u2netp'].find(n => (MODELS.find(m => m.name === n) || {}).ready);
+    chosen = ready || 'u2netp';
+  }
+  $('#models').innerHTML = MODELS.map(m => {
+    let st;
+    if (m.ready) st = '<span class="ok">✅ Taiyar</span>';
+    else if (m.status === 'running') st = `<div>⬇ ${m.percent}%</div><div class="pbar"><div style="width:${m.percent}%"></div></div><div class="muted small">${esc(m.message)}</div>`;
+    else st = `<button type="button" data-dl="${m.name}">⬇ Download (${esc(m.human)})</button>` + (m.status === 'error' ? `<div class="err small">${esc(m.message)}</div>` : '');
+    return `<div class="mrow"><label><input type="radio" name="model" value="${m.name}" ${m.name === chosen ? 'checked' : ''}> <b>${esc(m.label)}</b> <span class="muted">(${esc(m.name)}, ${esc(m.human)})</span><div class="muted small">${esc(m.note)}</div></label><div class="mstat">${st}</div></div>`;
+  }).join('');
+  $$('input[name=model]').forEach(r => r.onchange = () => { chosen = r.value; });
+  $$('[data-dl]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await fetch('/bgremove/models/download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:b.dataset.dl})});
+    refreshModels();
+  });
+}
+async function refreshModels() {
+  clearTimeout(timer);
+  try { MODELS = (await (await fetch('/bgremove/models')).json()).models; } catch (e) { return; }
+  drawModels();
+  if (MODELS.some(m => m.status === 'running')) timer = setTimeout(refreshModels, 800);
+}
+
+// background options
+const syncBg = () => {
+  const v = document.querySelector('input[name=bg]:checked').value;
+  $('#colorRow').hidden = v !== 'color'; $('#imgRow').hidden = v !== 'image';
+};
+$$('input[name=bg]').forEach(r => r.onchange = syncBg);
+$$('.sw').forEach(b => b.onclick = () => { $('#colorPick').value = b.dataset.c; });
+$('#openfolder').onclick = () => fetch('/bgremove/open-folder', {method:'POST'});
+
+function show(html, cls) { $('#result').innerHTML = `<div class="card ${cls||''}">${html}</div>`; }
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  const files = [...$('#files').files];
+  if (!files.length) return show('❌ Pehle image(en) chuno.', 'err');
+  const urls = {}; files.forEach(f => urls[f.name] = URL.createObjectURL(f));
+  const btn = $('#go'); btn.disabled = true;
+  show('Ho raha hai... (har photo mein kuch second lagte hain)');
+  try {
+    const r = await fetch('/bgremove/remove', {method:'POST', body:new FormData($('#form'))});
+    const j = await r.json();
+    if (!r.ok) { show('❌ ' + esc(j.error || 'Error'), 'err'); }
+    else {
+      let h = '✅ ' + esc(j.note);
+      h += '<div class="pairs">' + j.files.map(f => {
+        const url = '/bgremove/file/' + encodeURI(f.name);
+        return `<div class="pair"><div class="imgs"><div>Pehle<img src="${urls[f.source] || ''}" alt=""></div><div>Baad mein<img class="after" src="${url}" alt=""></div></div><a href="${url}" target="_blank">${esc(f.name)}</a> <span class="muted">${esc(f.size)}</span></div>`;
+      }).join('') + '</div>';
+      (j.details || []).forEach(d => h += `<div class="det">${esc(d)}</div>`);
+      (j.warnings || []).forEach(w => h += `<div class="warn">⚠️ ${esc(w)}</div>`);
+      show(h);
+    }
+  } catch (err) { show('❌ Server se rabta nahi hua: ' + esc(err), 'err'); }
+  btn.disabled = false;
+};
+
+refreshModels();
+</script>
+{% endblock %}

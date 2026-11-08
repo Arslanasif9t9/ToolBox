@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+{% block title %}QR / Barcode - Arslan Toolbox{% endblock %}
+{% block content %}
+<style>
+  main { max-width:1100px !important; }
+  [hidden] { display:none !important; }
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .tabs button { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:8px 14px; font-size:14px; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start; }
+  @media (max-width:900px) { .two { grid-template-columns:1fr; } }
+  .sticky { position:sticky; top:16px; }
+  .f label.l { display:block; margin-top:10px; font-size:14px; }
+  .f input[type=text], .f input[type=file], .f input[type=number], .f select, .f textarea { width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; font-family:inherit; }
+  .f textarea { min-height:90px; resize:vertical; }
+  .inline { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; font-size:14px; }
+  .inline label { margin:0; display:flex; gap:6px; align-items:center; }
+  .inline select { width:auto !important; }
+  input[type=color] { width:44px; height:34px; padding:2px; border-radius:8px; border:1px solid var(--line); background:var(--bg); }
+  .presets { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .presets button { width:46px; height:46px; border-radius:12px; border:2px solid var(--line); padding:0; cursor:pointer; }
+  .presets button:hover { border-color:var(--accent); }
+  .small { font-size:13px; }
+  .warn { color:#e0a030; font-size:13px; margin-top:6px; }
+  .prev { text-align:center; }
+  .prev img { max-width:100%; border-radius:10px; background:conic-gradient(#e6e6e6 25%, #fff 0 50%, #e6e6e6 0 75%, #fff 0) 0 0/16px 16px; }
+  .files a { color:var(--accent); display:block; margin-top:4px; }
+  video { width:100%; max-height:420px; background:#000; border-radius:10px; }
+  .found { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
+  .found pre { white-space:pre-wrap; word-break:break-word; margin:8px 0; font-family:inherit; font-size:15px; }
+  .badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; background:var(--accent); color:#fff; }
+  .grid2 { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
+  .grid2 img { max-height:120px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  summary { cursor:pointer; }
+</style>
+
+<h2>🔳 QR / Barcode</h2>
+<p class="muted">QR aur barcode banao, ya camera/photo se parho. Offline. Output: <code>{{ folder }}</code></p>
+
+<div class="tabs" id="tabs">
+  <button class="on" data-tab="qr">QR banao</button>
+  <button data-tab="bc">Barcode banao</button>
+  <button data-tab="read">QR parho (camera / photo)</button>
+  <button data-tab="bulk">Bulk (bohat saare)</button>
+</div>
+
+<!-- ============================ QR MAKE ============================ -->
+<div class="pane" id="qr">
+ <form class="f" id="qrForm" onsubmit="return false">
+  <div class="two">
+   <div>
+    <div class="card">
+      <b>1. QR mein kya hai?</b>
+      <select name="kind" id="kind" style="margin-top:8px">
+        <option value="text">Link / Text</option>
+        <option value="wifi">WiFi (scan karke connect)</option>
+        <option value="whatsapp">WhatsApp chat</option>
+        <option value="phone">Phone call</option>
+        <option value="sms">SMS</option>
+        <option value="email">Email</option>
+        <option value="vcard">Contact card (vCard)</option>
+        <option value="geo">Location (map)</option>
+      </select>
+      <div class="kind" data-kind="text"><label class="l">Link ya text <textarea name="text" placeholder="https://mazainsolution.com">https://mazainsolution.com</textarea></label></div>
+      <div class="kind" data-kind="wifi" hidden>
+        <label class="l">WiFi ka naam (SSID) <input type="text" name="wifi_ssid"></label>
+        <label class="l">Password <input type="text" name="wifi_pass"></label>
+        <div class="inline"><label>Security <select name="wifi_enc"><option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="nopass">Password nahi</option></select></label>
+        <label><input type="checkbox" name="wifi_hidden"> Hidden network</label></div>
+      </div>
+      <div class="kind" data-kind="whatsapp phone sms" hidden>
+        <label class="l">Number <input type="text" name="num" placeholder="03001234567 ya 923001234567"></label>
+        <label class="l kmsg">Message (WhatsApp/SMS ke liye, optional) <textarea name="msg"></textarea></label>
+      </div>
+      <div class="kind" data-kind="email" hidden>
+        <label class="l">Email address <input type="text" name="mail_to"></label>
+        <label class="l">Subject <input type="text" name="mail_sub"></label>
+        <label class="l">Message <textarea name="mail_body"></textarea></label>
+      </div>
+      <div class="kind" data-kind="vcard" hidden>
+        <label class="l">Naam <input type="text" name="vc_name"></label>
+        <div class="inline"><label style="flex:1">Company <input type="text" name="vc_org" style="width:100%"></label><label style="flex:1">Designation <input type="text" name="vc_title" style="width:100%"></label></div>
+        <div class="inline"><label style="flex:1">Phone <input type="text" name="vc_phone" style="width:100%"></label><label style="flex:1">Email <input type="text" name="vc_email" style="width:100%"></label></div>
+        <label class="l">Website <input type="text" name="vc_url"></label>
+        <label class="l">Address <input type="text" name="vc_addr"></label>
+      </div>
+      <div class="kind" data-kind="geo" hidden>
+        <div class="inline"><label style="flex:1">Latitude <input type="text" name="lat" placeholder="32.1017" style="width:100%"></label><label style="flex:1">Longitude <input type="text" name="lng" placeholder="74.8815" style="width:100%"></label></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>2. Design</b>
+      <div class="muted small" style="margin-top:6px">Tayyar design (ek click):</div>
+      <div class="presets" id="presets"></div>
+      <div class="inline">
+        <label>Dots <select name="style"><option value="square">Chaukor</option><option value="rounded">Gol kinare</option><option value="dots">Dots</option><option value="liquid">Liquid</option></select></label>
+        <label>Aankh (bahar) <select name="eye_outer"><option value="square">Chaukor</option><option value="rounded">Gol kinare</option><option value="circle">Gol</option></select></label>
+        <label>Aankh (andar) <select name="eye_inner"><option value="square">Chaukor</option><option value="rounded">Gol kinare</option><option value="circle">Gol</option></select></label>
+      </div>
+      <div class="inline">
+        <label>Rang <input type="color" name="c1" value="#000000"></label>
+        <label>Gradient <select name="grad" id="grad"><option value="none">Nahi (ek rang)</option><option value="diag">Tirchha</option><option value="h">Seedha (left→right)</option><option value="v">Upar→neeche</option><option value="radial">Gol (beech se)</option></select></label>
+        <label id="c2wrap" hidden>Doosra rang <input type="color" name="c2" value="#c33764"></label>
+      </div>
+      <div class="inline">
+        <label><input type="checkbox" name="eye_custom" id="eyecustom"> Aankhon ka alag rang</label>
+        <input type="color" name="eye_color" value="#222222" id="eyecolor" hidden>
+      </div>
+      <div class="inline">
+        <label>Peeche ka rang <input type="color" name="bg" value="#ffffff"></label>
+        <label><input type="checkbox" name="bg_transparent"> Transparent (PNG/SVG)</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>3. Logo aur frame</b>
+      <div class="inline">
+        <label>Logo <input type="file" name="logo" accept="image/*" style="width:auto"></label>
+        <label>Size <input type="range" name="logo_pct" min="10" max="30" value="22" style="width:120px"></label>
+        <button type="button" class="ghost" id="clearLogo">Logo hatao</button>
+      </div>
+      <div class="inline">
+        <label><input type="checkbox" name="frame"> Frame + likhai (jaise "SCAN ME")</label>
+        <input type="text" name="caption" value="SCAN ME" maxlength="24" style="width:180px" placeholder="Frame par likhai">
+      </div>
+      <details style="margin-top:12px"><summary class="muted small">Aur options</summary>
+        <div class="inline">
+          <label>Error correction <select name="ec"><option value="L">L (kam)</option><option value="M" selected>M (theek)</option><option value="Q">Q (zyada)</option><option value="H">H (sabse zyada)</option></select></label>
+          <label>Size <select name="size"><option value="600">600 px</option><option value="1000" selected>1000 px</option><option value="1500">1500 px</option><option value="2000">2000 px (print)</option></select></label>
+        </div>
+      </details>
+    </div>
+   </div>
+
+   <div class="sticky">
+    <div class="card prev">
+      <b>Preview</b>
+      <div style="margin-top:10px"><img id="qrImg" alt="" hidden></div>
+      <div id="qrStat" class="small" style="margin-top:8px"></div>
+      <div id="qrWarn"></div>
+    </div>
+    <div class="card">
+      <b>Save karo</b>
+      <div class="inline">
+        <label><input type="checkbox" name="fmt" value="png" checked> PNG</label>
+        <label><input type="checkbox" name="fmt" value="svg"> SVG</label>
+        <label><input type="checkbox" name="fmt" value="pdf"> PDF</label>
+      </div>
+      <label class="l">File ka naam (optional) <input type="text" name="fname" placeholder="qr"></label>
+      <button type="button" id="qrSave" style="margin-top:12px">💾 Save</button>
+      <div id="qrFiles" class="files small"></div>
+    </div>
+   </div>
+  </div>
+ </form>
+</div>
+
+<!-- ============================ BARCODE ============================ -->
+<div class="pane" id="bc" hidden>
+ <form class="f" id="bcForm" onsubmit="return false">
+  <div class="two">
+   <div class="card">
+    <label class="l" style="margin-top:0">Barcode type
+      <select name="bc_kind" id="bcKind">{% for k, v in barcodes.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+    <label class="l">Number / text <input type="text" name="bc_text" value="INV-2026-0001"></label>
+    <p class="muted small" style="margin:6px 0 0" id="bcHint"></p>
+    <div class="inline">
+      <label>Size <select name="bc_scale"><option value="s">Chhota</option><option value="m" selected>Medium</option><option value="l">Bara</option><option value="xl">Bohat bara</option></select></label>
+      <label>Neeche likhai <select name="bc_text_show"><option value="on">Dikhao</option><option value="off">Nahi</option></select></label>
+    </div>
+    <div class="inline">
+      <label>Rang <input type="color" name="bc_fg" value="#000000"></label>
+      <label>Peeche <input type="color" name="bc_bg" value="#ffffff"></label>
+    </div>
+    <div class="inline">
+      <label><input type="checkbox" name="bc_fmt" value="png" checked> PNG</label>
+      <label><input type="checkbox" name="bc_fmt" value="svg"> SVG</label>
+      <label><input type="checkbox" name="bc_fmt" value="pdf"> PDF</label>
+    </div>
+    <button type="button" id="bcSave" style="margin-top:12px">💾 Save</button>
+    <div id="bcFiles" class="files small"></div>
+   </div>
+   <div class="card prev sticky">
+     <b>Preview</b>
+     <div style="margin-top:10px"><img id="bcImg" alt="" hidden></div>
+     <div id="bcStat" class="small" style="margin-top:8px"></div>
+   </div>
+  </div>
+ </form>
+</div>
+
+<!-- ============================ READ ============================ -->
+<div class="pane" id="read" hidden>
+  <div class="card">
+    <b>📷 Camera se scan karo</b>
+    <p class="muted small" style="margin:4px 0 8px">Camera ki ijazat poochhega. QR ya barcode camera ke saamne rakho, apne aap parh lega. Sab tumhare laptop par hota hai, kuch upload nahi hota.</p>
+    <div class="inline" style="margin-top:0">
+      <button type="button" id="camStart">📷 Camera chalao</button>
+      <button type="button" class="ghost" id="camStop" hidden>⏹ Band karo</button>
+      <select id="camSel" style="width:auto" hidden></select>
+    </div>
+    <div id="camMsg" class="small muted" style="margin-top:8px"></div>
+    <div id="camBox" hidden style="margin-top:10px"><video id="vid" playsinline muted></video></div>
+    <canvas id="cv" hidden></canvas>
+  </div>
+  <div class="card" id="drop">
+    <b>🖼 Photo / screenshot se parho</b>
+    <p class="muted small" style="margin:4px 0 8px">File chuno, ya yahan drag karo, ya screenshot copy karke <b>Ctrl+V</b> dabao.</p>
+    <input type="file" id="upl" accept="image/*" multiple>
+  </div>
+  <div id="found"></div>
+</div>
+
+<!-- ============================ BULK ============================ -->
+<div class="pane" id="bulk" hidden>
+  <div class="card f">
+    <b>Bohat saare ek saath</b>
+    <p class="muted small" style="margin:4px 0 0">Har line mein ek value (link, number, text). QR ka design wahi lagega jo "QR banao" tab mein chuna hai (logo bhi). Barcode ke liye type/rang "Barcode banao" tab se. Ek baar mein 300 tak.</p>
+    <div class="inline">
+      <label><input type="radio" name="bulk_mode" value="qr" checked> QR codes</label>
+      <label><input type="radio" name="bulk_mode" value="barcode"> Barcodes</label>
+      <label>Format <select name="bulk_fmt"><option value="png">PNG</option><option value="svg">SVG</option></select></label>
+    </div>
+    <label class="l">List (har line mein ek) <textarea name="bulk_text" id="bulkText" style="min-height:150px" placeholder="https://example.com/a&#10;https://example.com/b"></textarea></label>
+    <div class="inline">
+      <label>Ya CSV/TXT file <input type="file" name="bulk_file" id="bulkFile" accept=".csv,.txt" style="width:auto"></label>
+      <label><input type="checkbox" name="bulk_named" id="bulkNamed"> Har line "naam,value" hai (naam se file banegi)</label>
+    </div>
+    <button type="button" id="bulkGo" style="margin-top:12px">⚙️ Sab banao</button>
+  </div>
+  <div id="bulkRes"></div>
+</div>
+
+<button class="ghost" id="openfolder" style="margin-top:6px">📂 Output folder kholo</button>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const qrForm = $('#qrForm'), bcForm = $('#bcForm');
+
+/* ---------- tabs ---------- */
+let curTab = 'qr';
+$$('#tabs button').forEach(b => b.onclick = () => {
+  curTab = b.dataset.tab;
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('.pane').forEach(p => p.hidden = p.id !== curTab);
+  if (curTab !== 'read') stopCam();
+  if (curTab === 'bc') bcPreview();
+});
+$('#openfolder').onclick = () => fetch('/qr/open-folder', {method:'POST'});
+
+/* ---------- QR make ---------- */
+const PRESETS = [
+  {n:'Classic', c1:'#111111', c2:'#111111', grad:'none', style:'square', eo:'square', ei:'square', eye:null},
+  {n:'Ocean', c1:'#0072ff', c2:'#00c6ff', grad:'diag', style:'rounded', eo:'rounded', ei:'circle', eye:'#0a3d91'},
+  {n:'Sunset', c1:'#d9381e', c2:'#f5a623', grad:'diag', style:'liquid', eo:'rounded', ei:'circle', eye:'#a52714'},
+  {n:'Royal', c1:'#4b1fa6', c2:'#c33764', grad:'diag', style:'dots', eo:'circle', ei:'circle', eye:'#2d1270'},
+  {n:'Forest', c1:'#0b6e4f', c2:'#1fa971', grad:'v', style:'rounded', eo:'rounded', ei:'rounded', eye:null},
+  {n:'Rose', c1:'#d6336c', c2:'#862e9c', grad:'h', style:'liquid', eo:'circle', ei:'circle', eye:null},
+  {n:'Midnight', c1:'#0f172a', c2:'#334155', grad:'radial', style:'dots', eo:'rounded', ei:'rounded', eye:'#0f172a'},
+];
+$('#presets').innerHTML = PRESETS.map((p, i) => `<button type="button" data-p="${i}" title="${p.n}" style="background:${p.grad === 'none' ? p.c1 : `linear-gradient(135deg, ${p.c1}, ${p.c2})`}"></button>`).join('');
+$$('#presets button').forEach(b => b.onclick = () => {
+  const p = PRESETS[b.dataset.p], f = qrForm.elements;
+  f.c1.value = p.c1; f.c2.value = p.c2; f.grad.value = p.grad; f.style.value = p.style;
+  f.eye_outer.value = p.eo; f.eye_inner.value = p.ei;
+  f.eye_custom.checked = !!p.eye; if (p.eye) f.eye_color.value = p.eye;
+  f.bg_transparent.checked = false; f.bg.value = '#ffffff';
+  syncQr(); qrPreview();
+});
+
+function syncQr() {
+  const k = $('#kind').value;
+  $$('.kind').forEach(d => d.hidden = !d.dataset.kind.split(' ').includes(k));
+  $('.kmsg').hidden = k === 'phone';
+  $('#c2wrap').hidden = $('#grad').value === 'none';
+  $('#eyecolor').hidden = !$('#eyecustom').checked;
+}
+$('#clearLogo').onclick = () => { qrForm.elements.logo.value = ''; qrPreview(); };
+
+let qrTimer = null, qrSeq = 0;
+function qrPreview() { clearTimeout(qrTimer); qrTimer = setTimeout(doQrPreview, 280); }
+async function doQrPreview() {
+  const seq = ++qrSeq;
+  try {
+    const r = await fetch('/qr/preview', {method:'POST', body:new FormData(qrForm)});
+    const j = await r.json();
+    if (seq !== qrSeq) return;
+    if (!r.ok) { $('#qrImg').hidden = true; $('#qrStat').innerHTML = `<span class="err">${esc(j.error)}</span>`; $('#qrWarn').innerHTML = ''; return; }
+    $('#qrImg').src = j.img; $('#qrImg').hidden = false;
+    $('#qrStat').innerHTML = (j.scan_ok === true ? '<span class="ok">✅ Scan test pass</span>' : j.scan_ok === false ? '<span class="err">⚠️ Is app ka scanner ise parh nahi saka</span>' : '') + ` <span class="muted">· version ${j.version}</span>`;
+    $('#qrWarn').innerHTML = (j.warnings || []).map(w => `<div class="warn">⚠️ ${esc(w)}</div>`).join('') +
+      (/circle/.test(qrForm.elements.eye_outer.value + qrForm.elements.eye_inner.value) ? '<div class="muted small" style="margin-top:6px">Gol aankhein aaj ke phones par chalti hain; print karne se pehle phone se ek baar scan karke dekh lo.</div>' : '');
+  } catch (e) { $('#qrStat').innerHTML = `<span class="err">Server se rabta nahi hua</span>`; }
+}
+qrForm.addEventListener('input', () => { syncQr(); qrPreview(); });
+qrForm.addEventListener('change', () => { syncQr(); qrPreview(); });
+
+function filesHtml(j) {
+  return `<div class="ok" style="margin-top:8px">✅ ${esc(j.note)}</div>` + j.files.map(f => `<a href="/qr/file/${encodeURI(f.name)}" target="_blank">${esc(f.name)} <span class="muted">${esc(f.size)}</span></a>`).join('');
+}
+$('#qrSave').onclick = async () => {
+  const b = $('#qrSave'); b.disabled = true; $('#qrFiles').innerHTML = 'Ho raha hai...';
+  try {
+    const r = await fetch('/qr/generate', {method:'POST', body:new FormData(qrForm)});
+    const j = await r.json();
+    $('#qrFiles').innerHTML = r.ok ? filesHtml(j) : `<span class="err">❌ ${esc(j.error)}</span>`;
+  } catch (e) { $('#qrFiles').innerHTML = `<span class="err">❌ ${esc(e)}</span>`; }
+  b.disabled = false;
+};
+
+/* ---------- barcode ---------- */
+const HINTS = {code128:'Kuch bhi English letters, digits, symbols. Inventory / invoice ke liye best.', code39:'CAPITAL letters, digits aur - . $ / + % space.',
+  ean13:'12 digits likho (13th check digit apne aap lagta hai). Products ke liye.', ean8:'7 digits likho (8th check digit apne aap).',
+  upca:'11 digits likho (12th check digit apne aap).', itf:'Sirf digits, ginti jorey (even) honi chahiye.'};
+let bcTimer = null, bcSeq = 0;
+function bcPreview() { clearTimeout(bcTimer); bcTimer = setTimeout(doBcPreview, 280); }
+async function doBcPreview() {
+  $('#bcHint').textContent = HINTS[$('#bcKind').value] || '';
+  const seq = ++bcSeq;
+  try {
+    const r = await fetch('/qr/barcode/preview', {method:'POST', body:new FormData(bcForm)});
+    const j = await r.json();
+    if (seq !== bcSeq) return;
+    if (!r.ok) { $('#bcImg').hidden = true; $('#bcStat').innerHTML = `<span class="err">${esc(j.error)}</span>`; return; }
+    $('#bcImg').src = j.img; $('#bcImg').hidden = false;
+    $('#bcStat').innerHTML = j.scan_ok === true ? '<span class="ok">✅ Scan test pass</span>' : j.scan_ok === false ? '<span class="err">⚠️ Scan test fail</span>' : '';
+  } catch (e) { $('#bcStat').innerHTML = `<span class="err">Server se rabta nahi hua</span>`; }
+}
+bcForm.addEventListener('input', bcPreview); bcForm.addEventListener('change', bcPreview);
+$('#bcSave').onclick = async () => {
+  const b = $('#bcSave'); b.disabled = true; $('#bcFiles').innerHTML = 'Ho raha hai...';
+  try {
+    const r = await fetch('/qr/barcode/generate', {method:'POST', body:new FormData(bcForm)});
+    const j = await r.json();
+    $('#bcFiles').innerHTML = r.ok ? filesHtml(j) : `<span class="err">❌ ${esc(j.error)}</span>`;
+  } catch (e) { $('#bcFiles').innerHTML = `<span class="err">❌ ${esc(e)}</span>`; }
+  b.disabled = false;
+};
+
+/* ---------- read: camera + upload ---------- */
+let stream = null, scanning = false;
+const vid = $('#vid'), cv = $('#cv');
+function beep() {
+  try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain();
+    o.connect(g); g.connect(a.destination); o.frequency.value = 880; g.gain.value = .15; o.start(); setTimeout(() => { o.stop(); a.close(); }, 140); } catch (e) {}
+}
+function stopCam() {
+  scanning = false;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  vid.srcObject = null; $('#camBox').hidden = true; $('#camStop').hidden = true; $('#camStart').hidden = false;
+}
+async function startCam(deviceId) {
+  stopCam();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('#camMsg').innerHTML = '<span class="err">Ye browser camera allow nahi karta. Chrome ya Edge mein <code>http://127.0.0.1:5000</code> kholo, ya photo upload karo.</span>'; return; }
+  $('#camMsg').textContent = 'Camera khul raha hai... (ijazat do)';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video: deviceId ? {deviceId:{exact:deviceId}} : {facingMode:{ideal:'environment'}}, audio:false});
+  } catch (e) {
+    $('#camMsg').innerHTML = `<span class="err">Camera nahi khula (${esc(e.name)}). Address bar mein camera ka icon dabake ijazat do, aur dekho ke koi doosra app camera na use kar raha ho. Ya neeche se photo upload karo.</span>`; return;
+  }
+  vid.srcObject = stream; await vid.play();
+  $('#camBox').hidden = false; $('#camStop').hidden = false; $('#camStart').hidden = true;
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    if (devs.length > 1) {
+      const cur = stream.getVideoTracks()[0].getSettings().deviceId;
+      $('#camSel').innerHTML = devs.map((d, i) => `<option value="${esc(d.deviceId)}" ${d.deviceId === cur ? 'selected' : ''}>${esc(d.label || 'Camera ' + (i + 1))}</option>`).join('');
+      $('#camSel').hidden = false;
+    }
+  } catch (e) {}
+  $('#camMsg').textContent = 'QR ya barcode camera ke saamne rakho...';
+  scanning = true; scanLoop();
+}
+async function scanLoop() {
+  const ctx = cv.getContext('2d');
+  while (scanning) {
+    if (vid.videoWidth) {
+      const w = Math.min(vid.videoWidth, 800), h = Math.round(vid.videoHeight * w / vid.videoWidth);
+      cv.width = w; cv.height = h; ctx.drawImage(vid, 0, 0, w, h);
+      const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .85));
+      try {
+        const r = await fetch('/qr/decode', {method:'POST', body:blob, headers:{'Content-Type':'image/jpeg'}});
+        const j = await r.json();
+        if (scanning && j.found && j.found.length) { beep(); stopCam(); $('#camMsg').textContent = '✅ Mil gaya!'; showFound(j.found); return; }
+      } catch (e) {}
+    }
+    await sleep(120);
+  }
+}
+$('#camStart').onclick = () => startCam();
+$('#camStop').onclick = () => { stopCam(); $('#camMsg').textContent = ''; };
+$('#camSel').onchange = e => startCam(e.target.value);
+
+function showFound(list, title) {
+  const html = list.map((f, i) => {
+    let h = `<div class="found"><span class="badge">${esc(f.type || 'Text')}</span> <span class="muted small">${esc(f.kind)}${title ? ' · ' + esc(title) : ''}</span>`;
+    h += `<pre id="ft${i}">${esc(f.text)}</pre>`;
+    if (f.info) h += '<table class="small">' + Object.entries(f.info).filter(([, v]) => v).map(([k, v]) => `<tr><td class="muted" style="padding-right:12px">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('') + '</table>';
+    h += `<div class="inline"><button type="button" class="ghost" data-copy="ft${i}">📋 Copy</button>`;
+    if (f.url && /^https?:/i.test(f.url)) h += `<a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer"><button type="button" class="ghost">🔗 Kholo</button></a>`;
+    if (f.info && f.info.Password) h += `<button type="button" class="ghost" data-copyval="${esc(f.info.Password)}">📋 Password copy</button>`;
+    return h + '</div></div>';
+  }).join('');
+  $('#found').insertAdjacentHTML('afterbegin', html);
+  $$('[data-copy]').forEach(b => b.onclick = async () => copyText(document.getElementById(b.dataset.copy).textContent, b));
+  $$('[data-copyval]').forEach(b => b.onclick = () => copyText(b.dataset.copyval, b));
+}
+async function copyText(t, b) {
+  try { await navigator.clipboard.writeText(t); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  b.textContent = '✅ Copy ho gaya';
+}
+async function readFile(file) {
+  const fd = new FormData(); fd.append('file', file, file.name || 'pasted.png');
+  try {
+    const r = await fetch('/qr/decode', {method:'POST', body:fd}); const j = await r.json();
+    if (!r.ok) $('#found').insertAdjacentHTML('afterbegin', `<div class="found err">❌ ${esc(file.name)}: ${esc(j.error)}</div>`);
+    else if (!j.found.length) $('#found').insertAdjacentHTML('afterbegin', `<div class="found">❌ ${esc(file.name || 'Image')}: koi QR/barcode nahi mila. Photo saaf aur seedhi ho, poora code frame mein ho.</div>`);
+    else showFound(j.found, file.name);
+  } catch (e) { $('#found').insertAdjacentHTML('afterbegin', `<div class="found err">❌ ${esc(e)}</div>`); }
+}
+$('#upl').onchange = async e => { for (const f of e.target.files) await readFile(f); e.target.value = ''; };
+const drop = $('#drop');
+['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = 'var(--accent)'; }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = ''; }));
+drop.addEventListener('drop', async e => { for (const f of e.dataTransfer.files) if (f.type.startsWith('image/')) await readFile(f); });
+document.addEventListener('paste', async e => {
+  if (curTab !== 'read') return;
+  for (const f of e.clipboardData.files) if (f.type.startsWith('image/')) await readFile(f);
+});
+
+/* ---------- bulk ---------- */
+$('#bulkGo').onclick = async () => {
+  const fd = new FormData(qrForm);
+  new FormData(bcForm).forEach((v, k) => { if (!fd.has(k) || k.startsWith('bc_')) fd.append(k, v); });
+  ['bulk_mode', 'bulk_fmt', 'bulk_text'].forEach(n => fd.set(n, document.querySelector(`#bulk [name=${n}]${n === 'bulk_mode' ? ':checked' : ''}`).value));
+  if ($('#bulkNamed').checked) fd.set('bulk_named', 'on');
+  if ($('#bulkFile').files[0]) fd.set('bulk_file', $('#bulkFile').files[0]);
+  const b = $('#bulkGo'); b.disabled = true; $('#bulkRes').innerHTML = '<div class="card">Ho raha hai... (zyada hon to kuch der lagegi)</div>';
+  try {
+    const r = await fetch('/qr/bulk', {method:'POST', body:fd}); const j = await r.json();
+    if (!r.ok) $('#bulkRes').innerHTML = `<div class="card err">❌ ${esc(j.error)}</div>`;
+    else $('#bulkRes').innerHTML = `<div class="card"><div class="ok">✅ ${esc(j.note)}</div><div class="files"><a href="/qr/file/${encodeURI(j.zip)}">⬇ ${esc(j.zip)} <span class="muted">${esc(j.zip_size)}</span></a></div>` +
+      `<div class="grid2">${(j.previews || []).map(p => `<div><img src="${p.img}" alt=""><div class="muted small">${esc(p.name)}</div></div>`).join('')}</div>` +
+      (j.warnings || []).map(w => `<div class="warn">⚠️ ${esc(w)}</div>`).join('') + '</div>';
+  } catch (e) { $('#bulkRes').innerHTML = `<div class="card err">❌ ${esc(e)}</div>`; }
+  b.disabled = false;
+};
+
+syncQr(); doQrPreview(); $('#bcHint').textContent = HINTS.code128;
+</script>
+{% endblock %}
